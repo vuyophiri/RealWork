@@ -28,7 +28,7 @@ export default function Register(){
       localStorage.setItem('user', JSON.stringify(res.data.user))
       
       // Redirect flow:
-      // If user is a Vendor (applicant) or Publisher, guide them to complete their business profile
+      // If user is a Vendor (applicant) or Publisher, guide them to complete their business profile.
       navigate('/vendor')
     }catch(err){
       setError(err.response?.data?.message || 'Registration failed')

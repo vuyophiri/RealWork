@@ -37,61 +37,62 @@ const vendorProfileSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
   
   // Company Details
-  companyName: { type: String },
-  tradingName: { type: String },
+  companyName: { type: String }, // Registered Company Name
+  tradingName: { type: String }, // Trading Name
   registrationNumber: { type: String }, // CIPC Number
-  vatNumber: { type: String },
+  vatNumber: { type: String }, // VAT Number
   csdNumber: { type: String }, // Central Supplier Database Number
   bbbeeLevel: { type: String }, // B-BBEE Level (1-8)
   
   // Contact Info
   address: {
-    street: String,
-    city: String,
-    postalCode: String
+    street: String, // Street Address
+    city: String, // City
+    postalCode: String // Postal Code
   },
   phone: { type: String },
   
   // Nested Arrays for structured data
-  directors: [directorSchema],
-  documents: [documentSchema],
-  professionalRegistrations: [registrationSchema],
+  directors: [directorSchema], // Company Directors
+  documents: [documentSchema], // Uploaded Documents
+  professionalRegistrations: [registrationSchema], // Professional Registrations
   
   // Experience & Capabilities
-  yearsExperience: { type: Number },
-  completedProjects: { type: Number },
-  coreCapabilities: [{ type: String }],
-  industriesServed: [{ type: String }],
-  status: { type: String, enum: ['incomplete','draft','pending','verified','rejected'], default: 'incomplete' },
+  yearsExperience: { type: Number }, // Years of Experience
+  completedProjects: { type: Number }, // Number of Completed Projects
+  coreCapabilities: [{ type: String }], // Core Capabilities
+  industriesServed: [{ type: String }], // Industries Served
+  status: { type: String, enum: ['incomplete','draft','pending','verified','rejected'], default: 'incomplete' }, // Verification Status
+  // Metrics for qualification evaluation
   metrics: {
     completeness: { type: Number, default: 0 },
-    documentCoverage: { type: Number, default: 0 },
-    missingFields: [{ type: String }],
-    missingDocs: [{ type: String }],
-    riskFlags: [{ type: String }],
-    missingRegistrations: [{ type: String }],
-    experienceYears: { type: Number, default: 0 },
-    projectsCompleted: { type: Number, default: 0 },
-    professionalBodies: { type: Number, default: 0 },
+    documentCoverage: { type: Number, default: 0 }, // Percentage of required docs uploaded
+    missingFields: [{ type: String }], // List of critical missing fields
+    missingDocs: [{ type: String }], // Missing required documents
+    riskFlags: [{ type: String }], // Risk Flags
+    missingRegistrations: [{ type: String }], // Missing Professional Registrations
+    experienceYears: { type: Number, default: 0 }, // Years of Experience
+    projectsCompleted: { type: Number, default: 0 }, // Number of Completed Projects
+    professionalBodies: { type: Number, default: 0 }, // Number of Verified Professional Bodies
     lastEvaluation: { type: Date }
   },
   autoExtracted: {
-    registrationNumber: { type: String },
-    bbbeeLevel: { type: String },
-    csdNumber: { type: String }
+    registrationNumber: { type: String }, // Auto-extracted Registration Number
+    bbbeeLevel: { type: String }, // Auto-extracted B-BBEE Level
+    csdNumber: { type: String } // Auto-extracted CSD Number
   },
   review: {
-    lastReviewer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    lastReviewedAt: { type: Date }
+    lastReviewer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Last user who reviewed the profile
+    lastReviewedAt: { type: Date } // Time of last review
   },
-  notes: [{ by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, text: String, createdAt: { type: Date, default: Date.now } }],
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
+  notes: [{ by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, text: String, createdAt: { type: Date, default: Date.now } }], // Notes added by reviewers
+  createdAt: { type: Date, default: Date.now }, // Profile creation timestamp
+  updatedAt: { type: Date, default: Date.now } // Profile last update timestamp
 })
-
+// Middleware to update the updatedAt timestamp
 vendorProfileSchema.pre('save', function(next){
-  this.updatedAt = Date.now()
-  next()
+  this.updatedAt = Date.now() // Update the timestamp on each save
+  next() 
 })
 
-module.exports = mongoose.model('VendorProfile', vendorProfileSchema)
+module.exports = mongoose.model('VendorProfile', vendorProfileSchema) // Export the VendorProfile model

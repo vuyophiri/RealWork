@@ -99,6 +99,8 @@ export default function TenderDashboard() {
   const registrations = useMemo(() => new Set((profile?.professionalRegistrations || []).map(reg => (reg.body || '').toLowerCase())), [profile])
   const yearsExperience = Number(profile?.yearsExperience || 0)
   const completedProjects = Number(profile?.completedProjects || 0)
+  const isProfileVerified = profile?.status === 'verified'
+  const hasProfile = Boolean(profile)
 
   const displayedTenders = view === 'suggested' ? suggestions : tenders
 
@@ -189,6 +191,13 @@ export default function TenderDashboard() {
             if (missingRegistrationBodies.length) qualificationWarnings.push(`Registrations: ${missingRegistrationBodies.join(', ')}`)
             qualificationWarnings.push(...experienceShortfalls)
             const qualifies = profile ? qualificationWarnings.length === 0 : null
+            const profileActionLabel = !hasProfile
+              ? 'Create Profile'
+              : !isProfileVerified
+                ? 'Finish Verification'
+                : missingDocs.length || missingRegistrationBodies.length || experienceShortfalls.length
+                  ? 'Update Documents'
+                  : 'Review Profile'
             const budgetLabel = formatBudget(tender.budgetMin, tender.budgetMax)
             return (
               <div key={tender._id} className="card">
@@ -224,7 +233,7 @@ export default function TenderDashboard() {
                     qualifies ? (
                       <Link to={`/apply/${tender._id}`} className="btn small">Apply</Link>
                     ) : (
-                      <Link to="/vendor" className="btn small ghost">Complete Profile</Link>
+                      <Link to="/vendor" className="btn small ghost">{profileActionLabel}</Link>
                     )
                   ) : (
                     <Link to="/login" className="btn small">Login to Apply</Link>

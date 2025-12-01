@@ -24,6 +24,7 @@ const loadPdfJs = async () => {
 }
 
 const REQUIRED_DOC_TYPES = ['cipc', 'bbbee', 'csd', 'taxClearance']
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '')
 const PROFESSIONAL_BODIES = [
   'CIDB',
   'ECSA',
@@ -215,6 +216,8 @@ function VendorProfileContent() {
   const [activeStep, setActiveStep] = useState(0)
   const [errors, setErrors] = useState({})
   const [docUploading, setDocUploading] = useState({})
+  const [docPreviewing, setDocPreviewing] = useState(null)
+  const [docDownloading, setDocDownloading] = useState(null)
   const [expiryDates, setExpiryDates] = useState({})
   const [isEditing, setIsEditing] = useState(false)
 
@@ -257,6 +260,155 @@ function VendorProfileContent() {
 
   const addDirector = () => {
     setDraft(prev => ({ ...prev, directors: [...prev.directors, { name: '', idNumber: '', role: '' }] }))
+  }
+
+  const resolveDocumentEndpoint = (doc) => {
+    if (doc?.url) {
+      const raw = doc.url.startsWith('http') ? doc.url.replace(API_BASE, '') : doc.url
+      return raw.replace(/^\/?api\//, '')
+    }
+    const fallbackId = doc?.profileId || profileId
+    if (doc?.filename && fallbackId) {
+      return `vendors/${fallbackId}/documents/${doc.filename}/download`
+    }
+    throw new Error('Document URL unavailable')
+  }
+
+  const inferMimeType = (doc, fallback) => {
+    const declared = doc?.mimeType || doc?.contentType
+    if (declared) return declared
+    const fromResponse = (fallback || '').split(';')[0].trim()
+    if (fromResponse) return fromResponse
+    const extension = (doc?.filename || '').split('.').pop()?.toLowerCase()
+    if (!extension) return 'application/octet-stream'
+    const map = {
+      pdf: 'application/pdf',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      gif: 'image/gif',
+      bmp: 'image/bmp',
+      webp: 'image/webp',
+      svg: 'image/svg+xml'
+    }
+    return map[extension] || 'application/octet-stream'
+  }
+
+  const preferredFilename = (doc, mimeType) => {
+    if (doc?.filename) return doc.filename
+    if (!mimeType) return `${doc?.type || 'document'}`
+    const map = {
+      'application/pdf': 'pdf',
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/bmp': 'bmp',
+      'image/webp': 'webp',
+      'image/svg+xml': 'svg'
+    }
+    const ext = map[mimeType] || 'bin'
+    return `${doc?.type || 'document'}.${ext}`
+  }
+
+  const [previewData, setPreviewData] = useState(null)
+
+  useEffect(() => {
+    if (!previewData?.url || typeof window === 'undefined') return
+    return () => {
+      window.URL.revokeObjectURL(previewData.url)
+    }
+  }, [previewData])
+
+  useEffect(() => {
+    if (!previewData || typeof window === 'undefined') return
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setPreviewData(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [previewData])
+
+  const closePreview = () => setPreviewData(null)
+
+  const describeMissingFile = (doc) => {
+    const kind = doc?.type ? doc.type.toUpperCase() : 'Document'
+    return `${kind} is missing on the server. Please upload a fresh copy using the Update button.`
+  }
+
+  const isLegacyPlaceholder = (doc) => (!doc?.url || doc.url === '#') && !doc?.mimeType
+
+  const handleViewDocument = async (doc) => {
+    if (!doc) return
+    try {
+      setDocPreviewing(doc.filename)
+      const endpoint = resolveDocumentEndpoint(doc)
+      const response = await api.get(endpoint, { responseType: 'blob' })
+      const mimeType = inferMimeType(doc, response.headers['content-type'])
+      const blob = new Blob([response.data], { type: mimeType })
+      const objectUrl = window.URL.createObjectURL(blob)
+      const viewType = mimeType?.includes('pdf') ? 'pdf' : mimeType?.startsWith('image/') ? 'image' : 'unsupported'
+
+      if (viewType === 'unsupported') {
+        const fallbackWindow = window.open(objectUrl, '_blank', 'noopener,noreferrer')
+        if (!fallbackWindow && typeof document !== 'undefined') {
+          const fallbackLink = document.createElement('a')
+          fallbackLink.href = objectUrl
+          fallbackLink.target = '_blank'
+          document.body.appendChild(fallbackLink)
+          fallbackLink.click()
+          document.body.removeChild(fallbackLink)
+        }
+        setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000)
+        return
+      }
+
+  setPreviewData({ url: objectUrl, mimeType, filename: doc.filename, type: viewType, doc })
+    } catch (err) {
+      console.error(err)
+      const status = err.response?.status
+      if (status === 404) {
+        alert(describeMissingFile(doc))
+      } else if (status === 401 || status === 403) {
+        alert('Please sign in again to view this document.')
+      } else {
+        alert('Unable to open the document preview. Please try downloading the file instead.')
+      }
+    } finally {
+      setDocPreviewing(null)
+    }
+  }
+
+  const handleDownloadDocument = async (doc) => {
+    if (!doc) return
+    try {
+      setDocDownloading(doc.filename)
+      const endpoint = resolveDocumentEndpoint(doc)
+      const response = await api.get(endpoint, { responseType: 'blob' })
+      const mimeType = inferMimeType(doc, response.headers['content-type'])
+      const blob = new Blob([response.data], { type: mimeType })
+      const objectUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = preferredFilename(doc, mimeType)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000)
+    } catch (err) {
+      console.error(err)
+      const status = err.response?.status
+      if (status === 404) {
+        alert(describeMissingFile(doc))
+      } else if (status === 401 || status === 403) {
+        alert('Please sign in again to download this document.')
+      } else {
+        alert('Download failed. Please try again.')
+      }
+    } finally {
+      setDocDownloading(null)
+    }
   }
 
   const updateDirector = (index, key, value) => {
@@ -423,7 +575,7 @@ function VendorProfileContent() {
   const handleDocumentUpload = async (type, file) => {
     if (!file) return
     try {
-  setDocUploading(prev => ({ ...prev, [type]: 'Uploading...' }))
+      setDocUploading(prev => ({ ...prev, [type]: 'Uploading...' }))
       const id = await ensureProfileExists()
       if (file.type === 'application/pdf') {
         const insights = await extractPdfMetadata(file)
@@ -464,107 +616,188 @@ function VendorProfileContent() {
 
   if (loading) return <p>Loading...</p>
 
+  const previewOverlay = previewData ? (
+    <div className="preview-overlay" role="dialog" aria-modal="true" onClick={closePreview}>
+      <div className="preview-container" onClick={event => event.stopPropagation()}>
+        <div className="preview-header">
+          <div>
+            <h3>Document Preview</h3>
+            <p className="muted" style={{ fontSize: '0.85rem' }}>{previewData.filename || 'Document'}</p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {previewData.doc && (
+              <button
+                type="button"
+                className="btn tiny ghost"
+                onClick={() => handleDownloadDocument(previewData.doc)}
+                disabled={docDownloading === previewData.doc.filename}
+              >
+                {docDownloading === previewData.doc.filename ? 'Saving…' : 'Download'}
+              </button>
+            )}
+            <button type="button" className="btn tiny outline" onClick={closePreview}>Close</button>
+          </div>
+        </div>
+        <div className="preview-body">
+          {previewData.type === 'pdf' && (
+            <iframe src={previewData.url} title="PDF preview" allowFullScreen />
+          )}
+          {previewData.type === 'image' && (
+            <img src={previewData.url} alt={previewData.filename || 'Document preview'} />
+          )}
+          {previewData.type !== 'pdf' && previewData.type !== 'image' && (
+            <p className="muted">Preview unavailable for this file type. Please download the document instead.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null
+
   if (submitted) {
     return (
-      <div className="card form-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
-        <h2>Application Submitted</h2>
-        <p className="muted" style={{ maxWidth: 400, margin: '0 auto 24px' }}>
-          Your vendor profile has been submitted for verification. We will notify you once the review is complete.
-        </p>
-        <button className="btn" onClick={() => navigate('/')}>Return to Home</button>
-      </div>
+      <>
+        {previewOverlay}
+        <div className="card form-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
+          <h2>Application Submitted</h2>
+          <p className="muted" style={{ maxWidth: 400, margin: '0 auto 24px' }}>
+            Your vendor profile has been submitted for verification. We will notify you once the review is complete.
+          </p>
+          <button className="btn" onClick={() => navigate('/')}>Return to Home</button>
+        </div>
+      </>
     )
   }
 
   if (!isEditing && (draft.status === 'verified' || draft.status === 'pending')) {
     return (
-      <div className="card form-card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-          <h2>My Business Profile</h2>
-          {draft.status === 'verified' ? (
-            <span className="badge success">Verified</span>
-          ) : (
-            <span className="badge warning">Under Review</span>
+      <>
+        {previewOverlay}
+        <div className="card form-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+            <h2>My Business Profile</h2>
+            {draft.status === 'verified' ? (
+              <span className="badge success">Verified</span>
+            ) : (
+              <span className="badge warning">Under Review</span>
+            )}
+          </div>
+
+          <div className="grid two-col">
+            <div>
+              <h4 className="muted">Company Details</h4>
+              <p><strong>{draft.companyName}</strong></p>
+              <p className="muted">{draft.tradingName}</p>
+              <p>Reg: {draft.registrationNumber}</p>
+              <p>VAT: {draft.vatNumber}</p>
+              <p>CSD: {draft.csdNumber}</p>
+              <p>B-BBEE Level: {draft.bbbeeLevel}</p>
+            </div>
+            <div>
+              <h4 className="muted">Contact</h4>
+              <p>{draft.phone}</p>
+              <p>{draft.address.street}</p>
+              <p>{draft.address.city}, {draft.address.postalCode}</p>
+            </div>
+          </div>
+
+          <h4 className="muted" style={{ marginTop: 24 }}>Directors</h4>
+          <div className="list">
+            {draft.directors.map((d, i) => (
+              <div key={i} className="card small">
+                <strong>{d.name}</strong> • {d.role}
+              </div>
+            ))}
+          </div>
+
+          {draft.professionalRegistrations && draft.professionalRegistrations.length > 0 && (
+            <>
+              <h4 className="muted" style={{ marginTop: 24 }}>Professional Registrations</h4>
+              <div className="list">
+                {draft.professionalRegistrations.map((reg, i) => (
+                  <div key={i} className="card small">
+                    <strong>{reg.body}</strong>
+                    {reg.grade && <span className="tag" style={{ marginLeft: 8 }}>{reg.grade}</span>}
+                    <p className="muted">Reg: {reg.registrationNumber}</p>
+                    {reg.expiry && <p className="muted">Expires: {reg.expiry.slice(0, 10)}</p>}
+                  </div>
+                ))}
+              </div>
+            </>
           )}
-        </div>
 
-        <div className="grid two-col">
-          <div>
-            <h4 className="muted">Company Details</h4>
-            <p><strong>{draft.companyName}</strong></p>
-            <p className="muted">{draft.tradingName}</p>
-            <p>Reg: {draft.registrationNumber}</p>
-            <p>VAT: {draft.vatNumber}</p>
-            <p>CSD: {draft.csdNumber}</p>
-            <p>B-BBEE Level: {draft.bbbeeLevel}</p>
-          </div>
-          <div>
-            <h4 className="muted">Contact</h4>
-            <p>{draft.phone}</p>
-            <p>{draft.address.street}</p>
-            <p>{draft.address.city}, {draft.address.postalCode}</p>
-          </div>
-        </div>
-
-        <h4 className="muted" style={{ marginTop: 24 }}>Directors</h4>
-        <div className="list">
-          {draft.directors.map((d, i) => (
-            <div key={i} className="card small">
-              <strong>{d.name}</strong> • {d.role}
-            </div>
-          ))}
-        </div>
-
-        {draft.professionalRegistrations && draft.professionalRegistrations.length > 0 && (
-          <>
-            <h4 className="muted" style={{ marginTop: 24 }}>Professional Registrations</h4>
-            <div className="list">
-              {draft.professionalRegistrations.map((reg, i) => (
-                <div key={i} className="card small">
-                  <strong>{reg.body}</strong>
-                  {reg.grade && <span className="tag" style={{ marginLeft: 8 }}>{reg.grade}</span>}
-                  <p className="muted">Reg: {reg.registrationNumber}</p>
-                  {reg.expiry && <p className="muted">Expires: {reg.expiry.slice(0, 10)}</p>}
+          <h4 className="muted" style={{ marginTop: 24 }}>Documents</h4>
+          <div className="document-grid">
+            {draft.documents.map((doc, i) => (
+              <div key={i} className="card small">
+                <strong>{doc.type.toUpperCase()}</strong>
+                <p className="muted doc-filename">{doc.filename}</p>
+                {doc.expiryDate && (
+                  <p className={new Date(doc.expiryDate) < new Date() ? 'error-text' : 'muted'}>
+                    Expires: {doc.expiryDate.slice(0, 10)} {new Date(doc.expiryDate) < new Date() && '(Expired)'}
+                  </p>
+                )}
+                {isLegacyPlaceholder(doc) && (
+                  <p className="error-text" style={{ fontSize: '0.75rem' }}>
+                    Preview unavailable. Upload a new copy to replace this placeholder record.
+                  </p>
+                )}
+                {docUploading[doc.type] && (
+                  <p className="muted" style={{ fontSize: '0.8rem' }}>{docUploading[doc.type]}</p>
+                )}
+                <div className="document-actions">
+                  <button
+                    className="btn tiny"
+                    onClick={() => handleViewDocument(doc)}
+                    disabled={isLegacyPlaceholder(doc) || docPreviewing === doc.filename}
+                  >
+                    {docPreviewing === doc.filename ? 'Opening…' : 'View'}
+                  </button>
+                  <button
+                    className="btn tiny ghost"
+                    onClick={() => handleDownloadDocument(doc)}
+                    disabled={isLegacyPlaceholder(doc) || docDownloading === doc.filename}
+                  >
+                    {docDownloading === doc.filename ? 'Saving…' : 'Download'}
+                  </button>
+                  <label className="btn tiny outline" style={{ cursor: 'pointer' }}>
+                    Update
+                    <input
+                      type="file"
+                      style={{ display: 'none' }}
+                      onChange={e => {
+                        const nextFile = e.target.files?.[0]
+                        if (nextFile) handleDocumentUpload(doc.type, nextFile)
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
                 </div>
-              ))}
-            </div>
-          </>
-        )}
+              </div>
+            ))}
+          </div>
 
-        <h4 className="muted" style={{ marginTop: 24 }}>Documents</h4>
-        <div className="document-grid">
-          {draft.documents.map((doc, i) => (
-            <div key={i} className="card small">
-              <strong>{doc.type.toUpperCase()}</strong>
-              <p className="muted">{doc.filename}</p>
-              {doc.expiryDate && (
-                <p className={new Date(doc.expiryDate) < new Date() ? 'error-text' : 'muted'}>
-                  Expires: {doc.expiryDate.slice(0, 10)} {new Date(doc.expiryDate) < new Date() && '(Expired)'}
-                </p>
-              )}
-            </div>
-          ))}
+          <div style={{ marginTop: 32, borderTop: '1px solid #eee', paddingTop: 24 }}>
+            <button 
+              className="btn outline" 
+              onClick={() => {
+                if (window.confirm('Updating your details will require re-verification. Your profile status will change to "Pending" until approved. Continue?')) {
+                  setIsEditing(true)
+                }
+              }}
+            >
+              Update My Details
+            </button>
+          </div>
         </div>
-
-        <div style={{ marginTop: 32, borderTop: '1px solid #eee', paddingTop: 24 }}>
-          <button 
-            className="btn outline" 
-            onClick={() => {
-              if (window.confirm('Updating your details will require re-verification. Your profile status will change to "Pending" until approved. Continue?')) {
-                setIsEditing(true)
-              }
-            }}
-          >
-            Update My Details
-          </button>
-        </div>
-      </div>
+      </>
     )
   }
 
   return (
-    <div className="card form-card">
+    <>
+      {previewOverlay}
+      <div className="card form-card">
       <h2>{isEditing && draft.status === 'verified' ? 'Update Profile' : 'Business Profile Wizard'}</h2>
       {message && <p className="muted" style={{ marginBottom: 16 }}>{message}</p>}
 
@@ -715,6 +948,44 @@ function VendorProfileContent() {
                         <p className="text-success" style={{ fontWeight: 500 }}>✓ {doc.filename}</p>
                         {doc.verified && <span className="badge success">Verified</span>}
                         {doc.expiryDate && <p className="muted" style={{ fontSize: '0.8rem' }}>Expires: {doc.expiryDate.slice(0, 10)}</p>}
+                        {isLegacyPlaceholder(doc) && (
+                          <p className="error-text" style={{ fontSize: '0.7rem', marginTop: 4 }}>
+                            Preview unavailable. Upload a new copy to replace this placeholder record.
+                          </p>
+                        )}
+                        {docUploading[type] && (
+                          <p className="muted" style={{ fontSize: '0.75rem' }}>{docUploading[type]}</p>
+                        )}
+                        <div className="document-actions" style={{ marginTop: 8 }}>
+                          <button
+                            type="button"
+                            className="btn tiny"
+                            onClick={() => handleViewDocument(doc)}
+                            disabled={isLegacyPlaceholder(doc) || docPreviewing === doc.filename}
+                          >
+                            {docPreviewing === doc.filename ? 'Opening…' : 'View'}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn tiny ghost"
+                            onClick={() => handleDownloadDocument(doc)}
+                            disabled={isLegacyPlaceholder(doc) || docDownloading === doc.filename}
+                          >
+                            {docDownloading === doc.filename ? 'Saving…' : 'Download'}
+                          </button>
+                          <label className="btn tiny outline" style={{ cursor: 'pointer' }}>
+                            Replace
+                            <input
+                              type="file"
+                              style={{ display: 'none' }}
+                              onChange={e => {
+                                const nextFile = e.target.files?.[0]
+                                if (nextFile) handleDocumentUpload(type, nextFile)
+                                e.target.value = ''
+                              }}
+                            />
+                          </label>
+                        </div>
                       </div>
                     ) : (
                       <p className="muted" style={{ marginBottom: 8 }}>No document uploaded</p>
@@ -754,6 +1025,44 @@ function VendorProfileContent() {
                       <p className="text-success" style={{ fontWeight: 500 }}>✓ {documentsByType['vatregistration'].filename}</p>
                       {documentsByType['vatregistration'].verified && <span className="badge success">Verified</span>}
                       {documentsByType['vatregistration'].expiryDate && <p className="muted" style={{ fontSize: '0.8rem' }}>Expires: {documentsByType['vatregistration'].expiryDate.slice(0, 10)}</p>}
+                      {isLegacyPlaceholder(documentsByType['vatregistration']) && (
+                        <p className="error-text" style={{ fontSize: '0.7rem', marginTop: 4 }}>
+                          Preview unavailable. Upload a new copy to replace this placeholder record.
+                        </p>
+                      )}
+                      {docUploading['vatRegistration'] && (
+                        <p className="muted" style={{ fontSize: '0.75rem' }}>{docUploading['vatRegistration']}</p>
+                      )}
+                      <div className="document-actions" style={{ marginTop: 8 }}>
+                        <button
+                          type="button"
+                          className="btn tiny"
+                          onClick={() => handleViewDocument(documentsByType['vatregistration'])}
+                          disabled={isLegacyPlaceholder(documentsByType['vatregistration']) || docPreviewing === documentsByType['vatregistration'].filename}
+                        >
+                          {docPreviewing === documentsByType['vatregistration'].filename ? 'Opening…' : 'View'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn tiny ghost"
+                          onClick={() => handleDownloadDocument(documentsByType['vatregistration'])}
+                          disabled={isLegacyPlaceholder(documentsByType['vatregistration']) || docDownloading === documentsByType['vatregistration'].filename}
+                        >
+                          {docDownloading === documentsByType['vatregistration'].filename ? 'Saving…' : 'Download'}
+                        </button>
+                        <label className="btn tiny outline" style={{ cursor: 'pointer' }}>
+                          Replace
+                          <input
+                            type="file"
+                            style={{ display: 'none' }}
+                            onChange={e => {
+                              const nextFile = e.target.files?.[0]
+                              if (nextFile) handleDocumentUpload('vatRegistration', nextFile)
+                              e.target.value = ''
+                            }}
+                          />
+                        </label>
+                      </div>
                     </div>
                   ) : (
                     <p className="muted" style={{ marginBottom: 8 }}>No document uploaded</p>
@@ -900,7 +1209,8 @@ function VendorProfileContent() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
   )
 }
 

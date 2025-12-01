@@ -16,6 +16,9 @@ const applicationSchema = new mongoose.Schema({
   durationWeeks: { type: Number }, // Estimated time to complete
   methodStatement: { type: String }, // Technical approach
   complianceDeclaration: { type: Boolean, default: false }, // User confirmed compliance
+  methodDocument: { type: String }, // Relative path to uploaded methodology PDF
+  methodDocumentId: { type: mongoose.Schema.Types.ObjectId }, // GridFS file reference for methodology PDF
+  methodDocumentName: { type: String }, // Original filename for download prompt
   
   // Supporting Documents (URLs or filenames)
   documents: [{ type: String }],

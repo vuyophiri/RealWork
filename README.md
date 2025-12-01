@@ -1,5 +1,4 @@
 # RealWork — Tender Management MVP
-# RealWork — Tender Management MVP
 
 RealWork is a web application that simplifies how SMEs, entrepreneurs, and organisations access and apply for tenders. The platform pools tender opportunities into a central place, providing clear requirements and deadlines so applicants can browse, apply, and track progress without relying on email or paper submissions.
 

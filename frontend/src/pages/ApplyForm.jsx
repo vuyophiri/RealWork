@@ -2,105 +2,170 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../api'
 
-// Simple application form that posts cover letter and optional document links
 export default function ApplyForm(){
   const { id } = useParams()
+  const navigate = useNavigate()
   const [formData, setFormData] = useState({
     coverLetter: '',
     proposedAmount: '',
     durationWeeks: '',
     methodStatement: '',
-    complianceDeclaration: false
+    complianceDeclaration: false,
+    methodDocument: null
   })
   const [error, setError] = useState('')
-  const navigate = useNavigate()
   const [blocked, setBlocked] = useState(false)
 
   useEffect(() => {
-    // check if user has a verified vendor profile; if not, block and ask to complete profile
     const check = async () => {
-      try{
+      try {
         const res = await api.get('/vendors/me')
-        const profile = res.data
-        if (!profile || profile.status !== 'verified') setBlocked(true)
-      }catch(err){ setBlocked(true) }
+        if (!res.data || res.data.status !== 'verified') setBlocked(true)
+      } catch {
+        setBlocked(true)
+      }
     }
     check()
   }, [])
 
-  const submit = async e => {
-    e.preventDefault(); setError('')
-    if (!formData.coverLetter) return setError('Please include a short cover letter')
+  const submit = async (e) => {
+    e.preventDefault()
+    setError('')
+
     if (!formData.proposedAmount) return setError('Please enter your proposed bid amount')
-    if (!formData.durationWeeks) return setError('Please enter the estimated duration')
+    if (!formData.durationWeeks) return setError('Please enter the estimated duration in weeks')
+    if (!formData.methodStatement && !formData.methodDocument) return setError('Provide a text summary or upload your methodology PDF')
+    if (!formData.coverLetter) return setError('Please include a cover letter')
     if (!formData.complianceDeclaration) return setError('You must declare compliance to proceed')
 
-    try{
-      await api.post('/applications', { tenderId: id, ...formData })
+    try {
+      const payload = new FormData()
+      payload.append('tenderId', id)
+      payload.append('coverLetter', formData.coverLetter)
+      payload.append('proposedAmount', formData.proposedAmount)
+      payload.append('durationWeeks', formData.durationWeeks)
+      payload.append('methodStatement', formData.methodStatement)
+      payload.append('complianceDeclaration', formData.complianceDeclaration)
+      if (formData.methodDocument) {
+        payload.append('methodDocument', formData.methodDocument)
+      }
+
+      await api.post('/applications', payload, { headers: { 'Content-Type': 'multipart/form-data' } })
       navigate('/dashboard')
-    }catch(err){
-      setError(err.response?.data?.message || 'Failed to submit')
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to submit your application')
     }
   }
 
   return (
     <div className="card form-card">
-      <h2>Submit Bid Application</h2>
+      <div className="form-header">
+        <h2>Submit Bid Application</h2>
+        <p className="muted">Complete the details below to lodge your bid for this tender.</p>
+      </div>
       {error && <p className="error">{error}</p>}
-      {blocked && <p className="error">You must complete and verify your Business Profile before applying. <a href="/vendor">Go to Business Profile</a></p>}
-      <form onSubmit={submit}>
-        <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <div>
-            <label>Proposed Bid Amount (R)</label>
-            <input 
-              type="number" 
-              value={formData.proposedAmount} 
-              onChange={e => setFormData({...formData, proposedAmount: e.target.value})} 
-              placeholder="0.00"
-              min="0"
+      {blocked && (
+        <p className="warning-strip">
+          You must complete and verify your Business Profile before applying. <a href="/vendor">Go to Business Profile</a>
+        </p>
+      )}
+      <form onSubmit={submit} className="form-stack">
+        <section className="form-section">
+          <h3>Commercial Details</h3>
+          <div className="form-grid">
+            <div className="form-field">
+              <label htmlFor="proposedAmount">Proposed Bid Amount (R)</label>
+              <input
+                id="proposedAmount"
+                type="number"
+                min="0"
+                placeholder="0.00"
+                value={formData.proposedAmount}
+                onChange={(e) => setFormData({ ...formData, proposedAmount: e.target.value })}
+              />
+              <span className="helper-text">Enter the full project amount including VAT if applicable.</span>
+            </div>
+            <div className="form-field">
+              <label htmlFor="durationWeeks">Estimated Duration (Weeks)</label>
+              <input
+                id="durationWeeks"
+                type="number"
+                min="1"
+                placeholder="e.g. 12"
+                value={formData.durationWeeks}
+                onChange={(e) => setFormData({ ...formData, durationWeeks: e.target.value })}
+              />
+              <span className="helper-text">Provide the total number of weeks to deliver the scope.</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="form-section">
+          <h3>Technical Response</h3>
+          <div className="form-field">
+            <label htmlFor="methodStatement">Method Statement / Execution Plan</label>
+            <span className="helper-text">Outline your approach, key milestones, resources, and risk controls. You can also upload a detailed methodology PDF.</span>
+            <textarea
+              id="methodStatement"
+              rows={6}
+              placeholder="Describe how you will deliver the works..."
+              value={formData.methodStatement}
+              onChange={(e) => setFormData({ ...formData, methodStatement: e.target.value })}
+            />
+            <div className="file-uploader">
+              <label htmlFor="methodDocument" className="file-label">
+                {formData.methodDocument ? formData.methodDocument.name : 'Attach detailed methodology (PDF, optional)'}
+              </label>
+              <input
+                id="methodDocument"
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setFormData({ ...formData, methodDocument: e.target.files?.[0] || null })}
+              />
+              <span className="helper-text">Maximum size 10MB. Uploads replace the text summary if provided.</span>
+              {formData.methodDocument && (
+                <button
+                  type="button"
+                  className="remove-file"
+                  onClick={() => setFormData({ ...formData, methodDocument: null })}
+                >
+                  Remove file
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="form-field">
+            <label htmlFor="coverLetter">Cover Letter</label>
+            <span className="helper-text">Summarize your team, experience, and readiness to mobilize.</span>
+            <textarea
+              id="coverLetter"
+              rows={5}
+              placeholder="Introduce your company and highlight relevant experience..."
+              value={formData.coverLetter}
+              onChange={(e) => setFormData({ ...formData, coverLetter: e.target.value })}
             />
           </div>
-          <div>
-            <label>Estimated Duration (Weeks)</label>
-            <input 
-              type="number" 
-              value={formData.durationWeeks} 
-              onChange={e => setFormData({...formData, durationWeeks: e.target.value})} 
-              placeholder="e.g. 12"
-              min="1"
+        </section>
+
+        <section className="form-section">
+          <h3>Declarations</h3>
+          <label className="checkbox-field" htmlFor="compliance">
+            <input
+              id="compliance"
+              type="checkbox"
+              checked={formData.complianceDeclaration}
+              onChange={(e) => setFormData({ ...formData, complianceDeclaration: e.target.checked })}
             />
-          </div>
-        </div>
-
-        <label>Method Statement / Execution Plan</label>
-        <p className="muted" style={{ marginTop: '-10px', marginBottom: '8px' }}>Briefly describe how you intend to execute this project.</p>
-        <textarea 
-          value={formData.methodStatement} 
-          onChange={e => setFormData({...formData, methodStatement: e.target.value})} 
-          placeholder="Outline your approach, key milestones, and resource allocation..."
-        />
-
-        <label>Cover Letter</label>
-        <textarea 
-          value={formData.coverLetter} 
-          onChange={e => setFormData({...formData, coverLetter: e.target.value})} 
-          placeholder="Introduce your company and summarize why you are the best fit..."
-        />
-
-        <div style={{ margin: '16px 0', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-          <input 
-            type="checkbox" 
-            id="compliance" 
-            style={{ width: 'auto', marginTop: '4px' }}
-            checked={formData.complianceDeclaration}
-            onChange={e => setFormData({...formData, complianceDeclaration: e.target.checked})}
-          />
-          <label htmlFor="compliance" style={{ fontWeight: 'normal', margin: 0 }}>
-            I hereby declare that my company meets all the specific eligibility criteria for this tender, including CIDB grading, tax compliance, and B-BBEE requirements. I understand that false declarations will lead to immediate disqualification.
+            <span>
+              I hereby declare that my company meets all the specific eligibility criteria for this tender, including CIDB grading,
+              tax compliance, and B-BBEE requirements. I understand that false declarations will lead to immediate disqualification.
+            </span>
           </label>
-        </div>
+        </section>
 
-        <button className="btn" type="submit" disabled={blocked}>Submit Application</button>
+        <div className="form-actions">
+          <button className="btn" type="submit" disabled={blocked}>Submit Application</button>
+        </div>
       </form>
     </div>
   )

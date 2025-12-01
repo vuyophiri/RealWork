@@ -191,7 +191,8 @@ router.get('/:id/documents/:filename/download', auth, async (req, res) => {
     const filename = req.params.filename
     const doc = profile.documents.find(d => d.filename === filename)
     if (!doc) return res.status(404).json({ message: 'Document not found' })
-    const filePath = path.join(__dirname, '..', 'uploads', 'vendors', profile.userId.toString(), filename)
+    // Files are stored under the Profile ID (req.params.id), not the User ID
+    const filePath = path.join(__dirname, '..', 'uploads', 'vendors', profile._id.toString(), filename)
     if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'File not found on disk' })
     res.download(filePath, doc.filename)
   } catch (err) {

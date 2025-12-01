@@ -21,43 +21,46 @@ export default function Navbar() {
 
   return (
     <nav className="nav">
-      <div className="nav-header">
-        <Link to="/" className="brand">RealWork</Link>
+      <div className="nav-inner">
+        <Link to="/" className="brand" onClick={() => setIsOpen(false)}>RealWork</Link>
+
+        {/* Navigation Links - toggled via 'open' class on mobile */}
+        <div className={`nav-links ${isOpen ? 'open' : ''}`}>
+          <div className="nav-left">
+            <Link to="/" onClick={() => setIsOpen(false)}>Tenders</Link>
+            {/* Publisher-specific link */}
+            {user && user.role === 'publisher' && (
+              <Link to="/admin/tenders" onClick={() => setIsOpen(false)}>My Tenders</Link>
+            )}
+          </div>
+          <div className="nav-right">
+            {/* Guest Links */}
+            {!token && <Link to="/login" onClick={() => setIsOpen(false)}>Login</Link>}
+            {!token && <Link to="/register" onClick={() => setIsOpen(false)}>Register</Link>}
+
+            {/* Vendor/Applicant Links */}
+            {token && user?.role !== 'admin' && <Link to="/dashboard" onClick={() => setIsOpen(false)}>My Applications</Link>}
+            {token && user?.role !== 'admin' && <Link to="/vendor" onClick={() => setIsOpen(false)}>Business Profile</Link>}
+
+            {/* Admin Links */}
+            {user && user.role === 'admin' && <Link to="/admin" onClick={() => setIsOpen(false)}>Admin</Link>}
+
+            {/* Authenticated User Info & Logout */}
+            {token && (
+              <>
+                <span className="user-name" style={{ marginLeft: 12, marginRight: 8 }}>{user?.name}</span>
+                <button onClick={() => { logout(); setIsOpen(false); }} className="btn small">Logout</button>
+              </>
+            )}
+          </div>
+        </div>
+
         {/* Hamburger button for mobile view */}
         <button className="hamburger" onClick={() => setIsOpen(!isOpen)}>
           <span className="bar"></span>
           <span className="bar"></span>
           <span className="bar"></span>
         </button>
-      </div>
-      
-      {/* Navigation Links - toggled via 'open' class on mobile */}
-      <div className={`nav-links ${isOpen ? 'open' : ''}`}>
-        <div className="nav-left">
-          <Link to="/" onClick={() => setIsOpen(false)}>Tenders</Link>
-          {/* Publisher-specific link */}
-          {user && user.role === 'publisher' && <Link to="/admin/tenders" onClick={() => setIsOpen(false)}>My Tenders</Link>}
-        </div>
-        <div className="nav-right">
-          {/* Guest Links */}
-          {!token && <Link to="/login" onClick={() => setIsOpen(false)}>Login</Link>}
-          {!token && <Link to="/register" onClick={() => setIsOpen(false)}>Register</Link>}
-          
-          {/* Vendor/Applicant Links */}
-          {token && user?.role !== 'admin' && <Link to="/dashboard" onClick={() => setIsOpen(false)}>My Applications</Link>}
-          {token && user?.role !== 'admin' && <Link to="/vendor" onClick={() => setIsOpen(false)}>Business Profile</Link>}
-          
-          {/* Admin Links */}
-          {user && user.role === 'admin' && <Link to="/admin" onClick={() => setIsOpen(false)}>Admin</Link>}
-          
-          {/* Authenticated User Info & Logout */}
-          {token && (
-            <>
-              <span className="user-name" style={{ marginLeft: 12, marginRight: 8 }}>{user?.name}</span>
-              <button onClick={() => { logout(); setIsOpen(false); }} className="btn small">Logout</button>
-            </>
-          )}
-        </div>
       </div>
     </nav>
   )

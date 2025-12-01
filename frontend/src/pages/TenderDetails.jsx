@@ -6,76 +6,217 @@ import api from '../api'
 export default function TenderDetails(){
   const { id } = useParams()
   const [tender, setTender] = useState(null)
-    const [qualify, setQualify] = useState(null)
+  const [qualify, setQualify] = useState(null)
+  const [requirementsStatus, setRequirementsStatus] = useState([])
 
   useEffect(() => {
     api.get(`/tenders/${id}`).then(r => setTender(r.data)).catch(e => console.error(e))
   }, [id])
   
-    // Check qualification status when both tender and user profile are available.
-    // This logic compares the user's uploaded documents and professional registrations
-    // against the tender's requirements (e.g., CIDB grade, specific docs).
-    useEffect(() => {
-      const check = async () => {
-        const token = localStorage.getItem('token')
-        if (!token) return setQualify(null)
-        try{
-          const [profRes, tenderRes] = await Promise.all([api.get('/vendors/me'), api.get(`/tenders/${id}`)])
-          const profile = profRes.data
-          const tender = tenderRes.data
-          if (!profile) return setQualify({ qualifies: false, missing: ['profile'] })
-          
-          // Normalize strings to ignore case and special characters for better matching
-          const normalize = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
-          const docs = (profile.documents||[]).map(d => normalize(d.type))
-          const required = tender.requiredDocs || ['cipc','bbbee','csd']
-          
-          // Identify missing documents
-          const missingDocs = required.filter(r => !docs.includes(normalize(r)))
+  // Check qualification status when both tender and user profile are available.
+  useEffect(() => {
+    const check = async () => {
+      if (!tender) return
 
-          // Check professional registrations (e.g. ECSA, SACPCMP)
-          const userRegs = profile.professionalRegistrations || []
-          const userBodies = userRegs.map(r => (r.body||'').toLowerCase())
-          const requiredBodies = (tender.professionalRequirements || []).map(r => r.toLowerCase())
-          
-          // If tender has CIDB grade requirement, ensure user has CIDB registration and sufficient grade
-          if (tender.cidbGrade) {
-            const userCidb = userRegs.find(r => (r.body||'').toLowerCase() === 'cidb')
-            if (!userCidb) {
-              requiredBodies.push('cidb registration')
-            } else {
-              // Parse CIDB grades (e.g. "7GB") into level (7) and type (GB)
-              const parseCidb = (str) => {
-                // Match digits, optional space, then letters. e.g. "7GB", "7 GB", "Grade 7GB"
-                const match = (str || '').match(/(\d+)\s*([a-zA-Z]+)/)
-                if (!match) return { level: 0, type: '' }
-                return { level: parseInt(match[1]), type: match[2].toUpperCase() }
-              }
-              
-              const reqGrade = parseCidb(tender.cidbGrade)
-              const userGrade = parseCidb(userCidb.grade)
-              
-              if (userGrade.type !== reqGrade.type || userGrade.level < reqGrade.level) {
-                requiredBodies.push(`CIDB Grade ${tender.cidbGrade} (You have ${userCidb.grade || 'none'})`)
-              }
-            }
-          }
-
-          const missingBodies = requiredBodies.filter(b => !userBodies.includes(b) && !b.startsWith('CIDB Grade') && b !== 'cidb registration')
-          
-          // Add specific CIDB errors if any
-          if (requiredBodies.some(b => b.startsWith('CIDB Grade') || b === 'cidb registration')) {
-             // Filter out generic 'cidb' if we have a specific error
-             const specificCidbError = requiredBodies.find(b => b.startsWith('CIDB Grade') || b === 'cidb registration')
-             if (specificCidbError) missingBodies.push(specificCidbError)
-          }
-
-          const missing = [...missingDocs, ...missingBodies]
-          setQualify({ qualifies: missing.length === 0, missing })
-        }catch(err){ console.error(err); setQualify(null) }
+      let profile = null
+      const token = localStorage.getItem('token')
+      if (token) {
+        try {
+          const res = await api.get('/vendors/me')
+          profile = res.data
+        } catch (e) {
+          console.error(e)
+        }
       }
-      check()
-    }, [id, tender])
+
+      const normalize = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const docs = profile ? (profile.documents || []).map(d => normalize(d.type)) : []
+  const userRegs = profile ? (profile.professionalRegistrations || []) : []
+  const userBodies = userRegs.map(r => (r.body || '').toLowerCase())
+      const userCidb = userRegs.find(r => (r.body || '').toLowerCase() === 'cidb')
+
+  const hasDocument = (candidate) => docs.some(docValue => docValue === candidate || docValue.includes(candidate) || candidate.includes(docValue))
+  const hasProfessionalBody = (candidate) => userBodies.some(body => body === candidate || body.includes(candidate) || candidate.includes(body))
+
+      const parseCidb = (value) => {
+        const match = (value || '').match(/(\d+)\s*([a-zA-Z]+)/)
+        if (!match) return { level: 0, type: '' }
+        return { level: parseInt(match[1], 10), type: match[2].toUpperCase().replace(/[^A-Z]/g, '') }
+      }
+
+      const evaluateCidb = (requiredGrade) => {
+        if (!profile) return { met: null, note: '' }
+        if (!userCidb) return { met: false, note: 'No CIDB registration found' }
+
+        const required = parseCidb(requiredGrade)
+        const user = parseCidb(userCidb.grade)
+
+        if (!required.level) return { met: true, note: '' }
+        if (!user.level) return { met: false, note: 'CIDB grade is missing or invalid' }
+
+        if (user.level >= required.level) {
+          if (!required.type || !user.type || user.type === required.type) {
+            return { met: true, note: '' }
+          }
+          return { met: true, note: `Different class (${userCidb.grade || 'unknown'} vs required ${requiredGrade})` }
+        }
+
+        return { met: false, note: `You have ${userCidb.grade || 'invalid grade'}` }
+      }
+
+      const statusOrder = []
+      const statusMap = new Map()
+      const mergeStatus = (key, payload) => {
+        if (!statusMap.has(key)) statusOrder.push(key)
+        statusMap.set(key, { ...(statusMap.get(key) || {}), ...payload })
+      }
+
+      const friendlyDocName = (docKey, rawValue) => {
+        const lookup = {
+          bbbee: 'B-BBEE Certificate',
+          bee: 'B-BBEE Certificate',
+          cipc: 'CIPC Document',
+          csd: 'CSD Report',
+          taxclearance: 'Tax Clearance Certificate',
+          tax: 'Tax Clearance Certificate',
+          sars: 'SARS Tax PIN',
+          coida: 'COIDA Letter'
+        }
+        if (lookup[docKey]) return lookup[docKey]
+        const source = (rawValue || docKey).replace(/[_-]/g, ' ')
+        return source.replace(/\b\w/g, c => c.toUpperCase())
+      }
+
+      const docRequirements = Array.isArray(tender.requiredDocs)
+        ? tender.requiredDocs
+        : (tender.requiredDocs ? [tender.requiredDocs] : [])
+
+      docRequirements.forEach(doc => {
+        const normalizedDoc = normalize(doc)
+        const key = `doc-${normalizedDoc}`
+        mergeStatus(key, {
+          name: friendlyDocName(normalizedDoc, doc),
+          met: profile ? hasDocument(normalizedDoc) : null,
+          type: 'document'
+        })
+      })
+
+      ;(tender.professionalRequirements || []).forEach(req => {
+        const key = `prof-${normalize(req)}`
+        mergeStatus(key, {
+          name: req,
+          met: profile ? hasProfessionalBody(req.toLowerCase()) : null,
+          type: 'professional'
+        })
+      })
+
+      if (tender.cidbGrade) {
+        const cidbResult = evaluateCidb(tender.cidbGrade)
+        mergeStatus('cidb', {
+          name: `CIDB Grade ${tender.cidbGrade}`,
+          met: profile ? cidbResult.met : null,
+          note: profile ? cidbResult.note : '',
+          type: 'cidb'
+        })
+      }
+
+      const rawRequirements = typeof tender.requirements === 'string' ? tender.requirements : ''
+      const textItems = rawRequirements
+        .replace(/\u2022/g, '\n')
+        .split(/\r?\n/)
+        .map(item => item.replace(/^[\-\*\u2022]\s*/, '').trim())
+        .filter(Boolean)
+
+      const docKeywordMap = [
+        { token: 'bbbee', key: 'bbbee' },
+        { token: 'b-bbee', key: 'bbbee' },
+        { token: 'bee certificate', key: 'bbbee' },
+        { token: 'cipc', key: 'cipc' },
+        { token: 'company registration', key: 'cipc' },
+        { token: 'csd', key: 'csd' },
+        { token: 'tax clearance', key: 'taxclearance' },
+        { token: 'sars', key: 'taxclearance' },
+        { token: 'coida', key: 'coida' }
+      ]
+
+      const profKeywordMap = [
+        { token: 'ecsa', key: 'ecsa' },
+        { token: 'sacpcmp', key: 'sacpcmp' },
+        { token: 'sacap', key: 'sacap' },
+        { token: 'saps', key: 'saps' }
+      ]
+
+      textItems.forEach((item, index) => {
+        const lower = item.toLowerCase()
+        let handled = false
+
+        if (lower.includes('cidb')) {
+          const parsed = parseCidb(item)
+          const requiredGrade = parsed.level ? `${parsed.level}${parsed.type}` : tender.cidbGrade
+          const cidbResult = evaluateCidb(requiredGrade || tender.cidbGrade || item)
+          mergeStatus('cidb', {
+            name: item,
+            met: profile ? cidbResult.met : null,
+            note: profile ? cidbResult.note : '',
+            type: 'cidb'
+          })
+          handled = true
+        }
+
+        if (!handled) {
+          const docMatch = docKeywordMap.find(d => lower.includes(d.token))
+          if (docMatch) {
+            const key = `doc-${docMatch.key}`
+            mergeStatus(key, {
+              name: item,
+              met: profile ? hasDocument(docMatch.key) : null,
+              type: 'document'
+            })
+            handled = true
+          }
+        }
+
+        if (!handled) {
+          const profMatch = profKeywordMap.find(p => lower.includes(p.token))
+          if (profMatch) {
+            const key = `prof-${profMatch.key}`
+            mergeStatus(key, {
+              name: item,
+              met: profile ? hasProfessionalBody(profMatch.key) : null,
+              type: 'professional'
+            })
+            handled = true
+          }
+        }
+
+        if (!handled) {
+          const key = `text-${index}`
+          mergeStatus(key, {
+            name: item,
+            met: null,
+            type: 'text'
+          })
+        }
+      })
+
+      const statusList = statusOrder.map(key => statusMap.get(key)).filter(Boolean)
+      setRequirementsStatus(statusList)
+
+      if (profile) {
+        const actionable = statusList.filter(s => s.met !== null)
+        if (actionable.length === 0) {
+          setQualify(null)
+        } else {
+          const qualifies = actionable.every(s => s.met)
+          const missing = actionable.filter(s => !s.met).map(s => s.name)
+          setQualify({ qualifies, missing })
+        }
+      } else {
+        setQualify(null)
+      }
+    }
+    check()
+  }, [id, tender])
 
   if (!tender) return <p>Loading...</p>
 
@@ -121,17 +262,30 @@ export default function TenderDetails(){
         <p>{tender.description}</p>
         
         <h4>Requirements</h4>
-        <p>{tender.requirements}</p>
-
-        {qualify && !qualify.qualifies && qualify.missing && qualify.missing.length > 0 && (
-          <div className="card small warning" style={{ marginTop: 16, marginBottom: 16 }}>
-            <h4 style={{ color: '#c2410c', marginTop: 0 }}>Missing Qualifications</h4>
-            <ul style={{ margin: '8px 0 0 0', paddingLeft: 20 }}>
-              {qualify.missing.map((item, i) => (
-                <li key={i} style={{ color: '#9a3412' }}>{item}</li>
+        {requirementsStatus.length > 0 ? (
+          <table className="requirements-table">
+            <thead>
+              <tr>
+                <th>Requirement</th>
+                <th style={{ width: '100px', textAlign: 'center' }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {requirementsStatus.map((req, i) => (
+                <tr key={i}>
+                  <td>
+                    {req.name}
+                    {req.note && <div className="error-text" style={{ margin: '4px 0 0', fontSize: '0.8rem' }}>{req.note}</div>}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    {req.met === null ? <span className="muted">-</span> : <span className="status-icon">{req.met ? '✅' : '❌'}</span>}
+                  </td>
+                </tr>
               ))}
-            </ul>
-          </div>
+            </tbody>
+          </table>
+        ) : (
+          <p>{tender.requirements || 'No requirements captured for this tender.'}</p>
         )}
 
         {tender.evaluationCriteria && tender.evaluationCriteria.length > 0 && (
