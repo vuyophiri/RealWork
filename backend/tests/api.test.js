@@ -1,10 +1,14 @@
 const request = require('supertest');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const app = require('../app');
 const User = require('../models/User');
 const Tender = require('../models/Tender');
+const Application = require('../models/Application');
+
+const signToken = (user) => jwt.sign({ id: user._id.toString(), role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
 let mongoServer;
 
@@ -66,5 +70,112 @@ describe('Tender API', () => {
     expect(response.body).toHaveLength(1);
     expect(response.body[0].title).toBe('Road Resurfacing Phase 1');
     expect(response.body[0].status).toBe('approved');
+  });
+});
+
+describe('Vendor API', () => {
+  test('creates or updates the current user profile and calculates metrics', async () => {
+    const user = await User.create({
+      name: 'Maseko Interactive',
+      email: 'maseko@example.com',
+      password: await bcrypt.hash('StrongPass123!', 10),
+      role: 'applicant'
+    });
+    const token = signToken(user);
+
+    const payload = {
+      companyName: 'Maseko Interactive',
+      registrationNumber: '2015/123456/07',
+      vatNumber: '4123456789',
+      csdNumber: 'MASEKO123',
+      bbbeeLevel: '2',
+      phone: '+27 21 555 0101',
+      address: { street: '12 Harbour Road', city: 'Cape Town', postalCode: '8000' },
+      professionalRegistrations: [{ body: 'CIDB', registrationNumber: '7GB', grade: '7GB' }],
+      yearsExperience: 10,
+      completedProjects: 25,
+      documents: [
+        { type: 'cipc', filename: 'cipc.pdf' },
+        { type: 'bbbee', filename: 'bbbee.pdf' },
+        { type: 'csd', filename: 'csd.pdf' }
+      ]
+    };
+
+    const response = await request(app)
+      .post('/api/vendors')
+      .set('Authorization', `Bearer ${token}`)
+      .send(payload);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toHaveProperty('_id');
+    expect(response.body.metrics?.missingFields).toHaveLength(0);
+    expect(response.body.metrics?.missingDocs).toHaveLength(0);
+    expect(response.body.metrics?.completeness).toBe(1);
+    expect(response.body.status).toBe('draft');
+  });
+});
+
+describe('Application API', () => {
+  test('requires ownership when fetching user applications', async () => {
+    const [owner, other] = await Promise.all([
+      User.create({ name: 'Owner', email: 'owner@example.com', password: await bcrypt.hash('OwnerPass123!', 10), role: 'applicant' }),
+      User.create({ name: 'Other', email: 'other@example.com', password: await bcrypt.hash('OtherPass123!', 10), role: 'applicant' })
+    ]);
+
+    await Application.create({ userId: owner._id, tenderId: new mongoose.Types.ObjectId(), status: 'submitted' });
+
+    const token = signToken(other);
+    const response = await request(app)
+      .get(`/api/applications/user/${owner._id.toString()}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.statusCode).toBe(403);
+    expect(response.body).toHaveProperty('message');
+  });
+
+  test('submits a new application with methodology PDF stored in GridFS', async () => {
+    const user = await User.create({
+      name: 'Zebulon Enterprise',
+      email: 'zebulon@example.com',
+      password: await bcrypt.hash('ZebulonPass123!', 10),
+      role: 'applicant'
+    });
+    const tender = await Tender.create({
+      title: 'Community Hall Renovation',
+      status: 'approved',
+      category: 'Construction',
+      sector: 'Public'
+    });
+
+    const token = signToken(user);
+
+    const response = await request(app)
+      .post('/api/applications')
+      .set('Authorization', `Bearer ${token}`)
+      .field('tenderId', tender._id.toString())
+      .field('coverLetter', 'We bring certified teams and proven delivery.')
+      .field('proposedAmount', '7500000')
+      .field('durationWeeks', '26')
+      .field('methodStatement', 'Outline of delivery approach')
+      .field('complianceDeclaration', 'true')
+  .attach('methodDocument', Buffer.from('%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<<>>\n%%EOF'), {
+        filename: 'methodology.pdf',
+        contentType: 'application/pdf'
+      });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.body).toHaveProperty('_id');
+    expect(response.body.methodDocumentId).toBeTruthy();
+
+    const stored = await Application.findById(response.body._id);
+    expect(stored.methodDocumentId).toBeDefined();
+
+    const download = await request(app)
+      .get(`/api/applications/${stored._id.toString()}/method-document`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(download.statusCode).toBe(200);
+    expect(download.headers['content-type']).toMatch(/application\/pdf/);
+    expect(download.body.length).toBeGreaterThan(0);
   });
 });
