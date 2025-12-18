@@ -31,4 +31,5 @@ const applicationSchema = new mongoose.Schema({
   }
 }, { timestamps: true }); // Automatically adds createdAt and updatedAt fields
 
+// Export the Application model
 module.exports = mongoose.model('Application', applicationSchema);

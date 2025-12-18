@@ -1,10 +1,17 @@
+// Apply Form Page
+// Form for vendors to submit tender applications with commercial details,
+// technical responses, and compliance declarations
+
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../api'
 
 export default function ApplyForm(){
+  // Get tender ID from URL and navigation function
   const { id } = useParams()
   const navigate = useNavigate()
+
+  // Form state with all application fields
   const [formData, setFormData] = useState({
     coverLetter: '',
     proposedAmount: '',
@@ -16,6 +23,7 @@ export default function ApplyForm(){
   const [error, setError] = useState('')
   const [blocked, setBlocked] = useState(false)
 
+  // Check if user has verified vendor profile before allowing application
   useEffect(() => {
     const check = async () => {
       try {
@@ -28,10 +36,12 @@ export default function ApplyForm(){
     check()
   }, [])
 
+  // Handle form submission with validation and file upload
   const submit = async (e) => {
     e.preventDefault()
     setError('')
 
+    // Form validation
     if (!formData.proposedAmount) return setError('Please enter your proposed bid amount')
     if (!formData.durationWeeks) return setError('Please enter the estimated duration in weeks')
     if (!formData.methodStatement && !formData.methodDocument) return setError('Provide a text summary or upload your methodology PDF')
@@ -39,6 +49,7 @@ export default function ApplyForm(){
     if (!formData.complianceDeclaration) return setError('You must declare compliance to proceed')
 
     try {
+      // Prepare multipart form data for submission
       const payload = new FormData()
       payload.append('tenderId', id)
       payload.append('coverLetter', formData.coverLetter)
@@ -50,6 +61,7 @@ export default function ApplyForm(){
         payload.append('methodDocument', formData.methodDocument)
       }
 
+      // Submit application and redirect to dashboard
       await api.post('/applications', payload, { headers: { 'Content-Type': 'multipart/form-data' } })
       navigate('/dashboard')
     } catch (err) {
@@ -59,17 +71,25 @@ export default function ApplyForm(){
 
   return (
     <div className="card form-card">
+      {/* Form header with title and description */}
       <div className="form-header">
         <h2>Submit Bid Application</h2>
         <p className="muted">Complete the details below to lodge your bid for this tender.</p>
       </div>
+
+      {/* Error message display */}
       {error && <p className="error">{error}</p>}
+
+      {/* Warning for unverified vendor profiles */}
       {blocked && (
         <p className="warning-strip">
           You must complete and verify your Business Profile before applying. <a href="/vendor">Go to Business Profile</a>
         </p>
       )}
+
+      {/* Application form with multiple sections */}
       <form onSubmit={submit} className="form-stack">
+        {/* Commercial details section */}
         <section className="form-section">
           <h3>Commercial Details</h3>
           <div className="form-grid">
@@ -100,6 +120,7 @@ export default function ApplyForm(){
           </div>
         </section>
 
+        {/* Technical response section with method statement and file upload */}
         <section className="form-section">
           <h3>Technical Response</h3>
           <div className="form-field">
@@ -112,6 +133,7 @@ export default function ApplyForm(){
               value={formData.methodStatement}
               onChange={(e) => setFormData({ ...formData, methodStatement: e.target.value })}
             />
+            {/* File upload for methodology document */}
             <div className="file-uploader">
               <label htmlFor="methodDocument" className="file-label">
                 {formData.methodDocument ? formData.methodDocument.name : 'Attach detailed methodology (PDF, optional)'}
@@ -134,6 +156,7 @@ export default function ApplyForm(){
               )}
             </div>
           </div>
+          {/* Cover letter field */}
           <div className="form-field">
             <label htmlFor="coverLetter">Cover Letter</label>
             <span className="helper-text">Summarize your team, experience, and readiness to mobilize.</span>
@@ -147,6 +170,7 @@ export default function ApplyForm(){
           </div>
         </section>
 
+        {/* Compliance declaration section */}
         <section className="form-section">
           <h3>Declarations</h3>
           <label className="checkbox-field" htmlFor="compliance">
@@ -163,6 +187,7 @@ export default function ApplyForm(){
           </label>
         </section>
 
+        {/* Form submission actions */}
         <div className="form-actions">
           <button className="btn" type="submit" disabled={blocked}>Submit Application</button>
         </div>

@@ -48,9 +48,11 @@ router.get('/', async (req, res) => {
         ]
       });
     }
+    // Filtering by category and sector
     if (category) conditions.push({ category: { $regex: new RegExp(category, 'i') } });
     if (sector) conditions.push({ sector: { $regex: new RegExp(sector, 'i') } });
 
+    // Filtering by tags, professional requirements, experience, budget, deadlines
     if (tags) {
       const tagList = parseCommaList(tags);
       if (tagList.length) {

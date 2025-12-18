@@ -1,7 +1,12 @@
+// TenderDashboard Component
+// Displays a list of tenders with filtering, sorting, and qualification checking
+// Supports both public view and personalized recommendations for logged-in users
+
 import React, { useEffect, useMemo, useState } from 'react'
 import api from '../api'
 import { Link } from 'react-router-dom'
 
+// Deadline filter options for the UI
 const DEADLINE_WINDOWS = [
   { label: 'Any deadline', value: 'any' },
   { label: 'Due within 7 days', value: '7' },
@@ -9,6 +14,7 @@ const DEADLINE_WINDOWS = [
   { label: 'Due after 30 days', value: 'future' }
 ]
 
+// Helper function to format budget display
 const formatBudget = (min, max) => {
   if (min == null && max == null) return null
   if (min != null && max != null) return `Budget: R${min.toLocaleString()} - R${max.toLocaleString()}`
@@ -18,6 +24,7 @@ const formatBudget = (min, max) => {
 }
 
 export default function TenderDashboard() {
+  // State for tenders data and UI
   const [tenders, setTenders] = useState([])
   const [suggestions, setSuggestions] = useState([])
   const [filters, setFilters] = useState({ category: '', sector: '', minBudget: '', maxBudget: '', deadline: 'any' })
@@ -30,6 +37,7 @@ export default function TenderDashboard() {
   const [view, setView] = useState('all')
   const token = localStorage.getItem('token')
 
+  // Update category and sector filter options based on available tenders
   const updateCategoryCache = (data) => {
     setCategories(prev => {
       const next = new Set(prev)
@@ -43,6 +51,7 @@ export default function TenderDashboard() {
     })
   }
 
+  // Load tenders from API with current filters and sorting
   const loadTenders = async () => {
     setLoading(true)
     try {
@@ -71,6 +80,7 @@ export default function TenderDashboard() {
     }
   }
 
+  // Load tenders when filters or sort changes (debounced)
   useEffect(() => {
     const handle = setTimeout(() => {
       loadTenders()
@@ -78,11 +88,13 @@ export default function TenderDashboard() {
     return () => clearTimeout(handle)
   }, [filters, sort])
 
+  // Load user profile if logged in
   useEffect(() => {
     if (!token) return
     api.get('/vendors/me').then(r => setProfile(r.data)).catch(() => setProfile(null))
   }, [token])
 
+  // Load personalized tender suggestions if logged in
   useEffect(() => {
     if (!token) {
       setSuggestions([])
@@ -95,6 +107,7 @@ export default function TenderDashboard() {
       .finally(() => setLoadingSuggestions(false))
   }, [token])
 
+  // Computed values from user profile for qualification checking
   const docs = useMemo(() => (profile?.documents || []).map(doc => (doc.type || '').toLowerCase()), [profile])
   const registrations = useMemo(() => new Set((profile?.professionalRegistrations || []).map(reg => (reg.body || '').toLowerCase())), [profile])
   const yearsExperience = Number(profile?.yearsExperience || 0)
@@ -104,6 +117,7 @@ export default function TenderDashboard() {
 
   const displayedTenders = view === 'suggested' ? suggestions : tenders
 
+  // Reset all filters to default values
   const resetFilters = () => {
     setFilters({ category: '', sector: '', minBudget: '', maxBudget: '', deadline: 'any' })
     setSort('deadline-asc')
@@ -111,6 +125,7 @@ export default function TenderDashboard() {
 
   return (
     <div className="tender-dashboard">
+      {/* Header with title and view toggle buttons */}
       <div className="top-row">
         <h2>Open Tenders</h2>
         <div className="badge-group">
@@ -119,6 +134,7 @@ export default function TenderDashboard() {
         </div>
       </div>
 
+      {/* Filter controls for category, sector, budget, deadline, and sorting */}
       <div className="filters">
         <div>
           <label>Category</label>
@@ -163,6 +179,7 @@ export default function TenderDashboard() {
         </div>
       </div>
 
+      {/* Results summary and loading indicator */}
       <div className="top-row" style={{ marginTop: 16 }}>
         <p className="muted">Showing {displayedTenders.length} {view === 'suggested' ? 'suggested' : 'matching'} tenders</p>
         {view === 'suggested' && (
@@ -170,11 +187,13 @@ export default function TenderDashboard() {
         )}
       </div>
 
+      {/* Loading state or tender grid */}
       {loading ? (
         <p>Loading tenders...</p>
       ) : (
         <div className="grid">
           {displayedTenders.map(tender => {
+            // Check qualification requirements against user profile
             const requiredDocs = tender.requiredDocs || []
             const missingDocs = requiredDocs.filter(doc => !docs.includes((doc || '').toLowerCase()))
             const requiredRegistrations = tender.professionalRequirements || []
@@ -201,6 +220,7 @@ export default function TenderDashboard() {
             const budgetLabel = formatBudget(tender.budgetMin, tender.budgetMax)
             return (
               <div key={tender._id} className="card">
+                {/* Tender header with title, metadata, and requirement tags */}
                 <div className="card-heading">
                   <div>
                     <h3>{tender.title}</h3>
@@ -216,7 +236,9 @@ export default function TenderDashboard() {
                     {requiredRegistrations.map(req => <span key={req} className="tag accent">{req}</span>)}
                   </div>
                 </div>
+                {/* Tender description */}
                 <p style={{ marginTop: 12 }}>{tender.description?.slice(0, 220)}{tender.description && tender.description.length > 220 ? '...' : ''}</p>
+                {/* Qualification status and warnings */}
                 {qualifies !== null && (
                   <div className="qualification-block">
                     <p className="muted">Qualification: {qualifies ? <span className="success">Ready to apply</span> : <span className="warning">Action required</span>}</p>
@@ -227,6 +249,7 @@ export default function TenderDashboard() {
                     )}
                   </div>
                 )}
+                {/* Action buttons */}
                 <div className="actions" style={{ marginTop: 12 }}>
                   <Link to={`/tenders/${tender._id}`} className="btn ghost small">Details</Link>
                   {token ? (
@@ -245,6 +268,7 @@ export default function TenderDashboard() {
         </div>
       )}
 
+      {/* Empty state for suggested view when no personalized tenders */}
       {view === 'suggested' && !loading && !loadingSuggestions && !displayedTenders.length && (
         <div className="card" style={{ marginTop: 24 }}>
           <h3>No personalised tenders yet</h3>

@@ -1,12 +1,18 @@
+// Landing Page Component
+// Main entry point for the application showing hero section, features,
+// and live tenders. Adapts content based on user authentication status.
+
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import TenderDashboard from '../components/TenderDashboard'
 import api from '../api'
 
 export default function LandingPage() {
+  // Check for authentication token
   const token = localStorage.getItem('token')
   const [vendorStatus, setVendorStatus] = useState(null)
 
+  // Fetch vendor profile status if user is logged in
   useEffect(() => {
     if (token) {
       api.get('/vendors/me')
@@ -17,7 +23,7 @@ export default function LandingPage() {
 
   return (
     <div>
-      {/* Hero Section */}
+      {/* Hero Section - Main call-to-action area */}
       <div style={{
         background: 'linear-gradient(135deg, #0b74da 0%, #0666c7 100%)',
         color: 'white',
@@ -32,6 +38,7 @@ export default function LandingPage() {
         <p style={{ fontSize: '1.25rem', maxWidth: '600px', margin: '0 auto 32px', opacity: '0.9' }}>
           The premier platform connecting construction professionals with verified tenders and project opportunities.
         </p>
+        {/* Conditional action buttons based on authentication status */}
         <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
           {!token && (
             <>
@@ -51,7 +58,7 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* Features Section */}
+      {/* Features Section - Highlight key platform benefits */}
       <div className="container" style={{ marginBottom: '60px' }}>
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
           <div className="card" style={{ textAlign: 'center', padding: '32px' }}>
@@ -72,12 +79,12 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* Live Tenders Section */}
+      {/* Live Tenders Section - Shows available tenders using TenderDashboard component */}
       <div className="container">
         <TenderDashboard />
       </div>
 
-      {/* Footer */}
+      {/* Footer Section */}
       <footer style={{ background: '#fff', padding: '40px 20px', marginTop: '80px', borderTop: '1px solid #eee', textAlign: 'center' }}>
         <p className="muted">© 2025 RealWork. All rights reserved.</p>
       </footer>

@@ -10,13 +10,17 @@ const Application = require('../models/Application');
 const Tender = require('../models/Tender');
 const { auth, adminOnly } = require('../middleware/auth');
 
+// Promisify stream pipeline for easier async/await usage
 const pipeline = promisify(require('stream').pipeline);
 
+// Create router
 const router = express.Router();
 
+// Ensure uploads directory exists
 const uploadsRoot = path.join(__dirname, '..', 'uploads', 'applications');
 fs.mkdirSync(uploadsRoot, { recursive: true });
 
+// Multer setup for handling file uploads (methodology document)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -28,6 +32,7 @@ const upload = multer({
   }
 });
 
+// Normalize documents input to an array of strings
 const normalizeDocuments = (documents) => {
   if (!documents) return [];
   if (Array.isArray(documents)) return documents;
@@ -42,8 +47,11 @@ const normalizeDocuments = (documents) => {
   return [];
 };
 
+// GridFS Bucket for storing methodology documents
 let gridFsBucket;
 let gridFsBucketDbName;
+
+// Get or initialize GridFS bucket
 const getGridFsBucket = () => {
   const db = mongoose.connection.db;
   if (!db) return null;
@@ -62,18 +70,23 @@ router.post('/', auth, (req, res, next) => {
       const status = err instanceof multer.MulterError ? 400 : 415;
       return res.status(status).json({ message: err.message || 'Failed to upload methodology document' });
     }
-
+    // Proceed with application creation
     try {
       const { tenderId, coverLetter, documents, proposedAmount, durationWeeks, methodStatement, complianceDeclaration } = req.body;
       let parsedAmount = proposedAmount !== undefined ? Number(proposedAmount) : undefined;
+
+      // Validate tender existence
       if (Number.isNaN(parsedAmount)) parsedAmount = undefined;
       let parsedDuration = durationWeeks !== undefined ? Number(durationWeeks) : undefined;
+      
+      // Validate tender existence
       if (Number.isNaN(parsedDuration)) parsedDuration = undefined;
       const compliance = complianceDeclaration === 'true' || complianceDeclaration === true || complianceDeclaration === 'on';
       const docList = normalizeDocuments(documents);
       let methodDocumentId;
       let methodDocumentName;
 
+      // Handle methodology document upload to GridFS if provided
       if (req.file) {
         const bucket = getGridFsBucket();
         if (!bucket) {
@@ -111,6 +124,8 @@ router.post('/', auth, (req, res, next) => {
         methodDocumentName
       });
 
+
+      // Save application to database
       await app.save();
       return res.status(201).json(app);
     } catch (err) {
@@ -139,26 +154,33 @@ router.get('/user/:userId', auth, async (req, res) => {
 router.get('/:id/method-document', auth, async (req, res) => {
   try {
     const app = await Application.findById(req.params.id);
+
+    // Ensure application exists
     if (!app) return res.status(404).json({ message: 'Application not found' });
 
+    // Check if the user owns the application or is an admin
     const ownsApplication = app.userId.toString() === req.user.id;
     if (!ownsApplication && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Forbidden' });
     }
-
+    // Ensure there is a methodology document to download
     if (!app.methodDocument && !app.methodDocumentId) {
       return res.status(404).json({ message: 'No methodology document uploaded' });
     }
 
+    // Determine download filename and disposition
     const downloadName = app.methodDocumentName || `methodology-${app._id}.pdf`;
     const asAttachment = ['1', 'true', 'download'].includes((req.query.download || '').toString().toLowerCase());
     const dispositionType = asAttachment ? 'attachment' : 'inline';
 
+    // Stream the document from GridFS if stored there
     if (app.methodDocumentId) {
       const bucket = getGridFsBucket();
+      // Handle case where GridFS bucket is not ready
       if (!bucket) {
         return res.status(503).json({ message: 'File storage is currently unavailable. Please try again later.' });
       }
+      // Stream the file from GridFS
       try {
         const downloadStream = bucket.openDownloadStream(app.methodDocumentId);
         let headersPrepared = false;
@@ -168,6 +190,7 @@ router.get('/:id/method-document', auth, async (req, res) => {
           res.setHeader('Content-Type', fileDoc?.contentType || 'application/pdf');
           res.setHeader('Content-Disposition', `${dispositionType}; filename="${encodeURIComponent(downloadName)}"`);
         });
+        // Handle errors during streaming
         downloadStream.on('error', (streamErr) => {
           console.error('Failed to read methodology document from GridFS:', streamErr);
           if (!res.headersSent) {
@@ -184,11 +207,12 @@ router.get('/:id/method-document', auth, async (req, res) => {
         return res.status(500).json({ message: 'Failed to stream methodology document' });
       }
     }
-
+    // Fallback: Serve the document from local uploads directory
     const filePath = path.join(__dirname, '..', 'uploads', app.methodDocument);
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ message: 'Document not found on server' });
     }
+    // Set headers and send file
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `${dispositionType}; filename="${encodeURIComponent(downloadName)}"`);
     return res.sendFile(filePath);
@@ -253,6 +277,7 @@ router.delete('/:id', auth, async (req, res) => {
       return res.status(403).json({ message: 'Forbidden' });
     }
 
+    // Remove methodology document from GridFS if it exists
     if (app.methodDocumentId) {
       const bucket = getGridFsBucket();
       if (bucket) {
@@ -264,6 +289,7 @@ router.delete('/:id', auth, async (req, res) => {
       }
     }
 
+    // Also remove local file if it exists and is not in GridFS
     if (app.methodDocument && (!app.methodDocumentId || app.methodDocument.includes('/'))) {
       const filePath = path.join(__dirname, '..', 'uploads', app.methodDocument);
       try {
@@ -275,6 +301,7 @@ router.delete('/:id', auth, async (req, res) => {
       }
     }
 
+    // Delete the application from the database
     await app.deleteOne();
     res.json({ message: 'Application withdrawn' });
   } catch (err) {
@@ -283,4 +310,5 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
+// Export the router
 module.exports = router;

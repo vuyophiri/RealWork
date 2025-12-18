@@ -2,6 +2,8 @@
 // This model represents a procurement opportunity (Tender) in the system.
 const mongoose = require('mongoose');
 
+// Define the Tender schema
+
 const tenderSchema = new mongoose.Schema({
   // Basic Tender Information
   title: { type: String, required: true },
@@ -56,4 +58,5 @@ tenderSchema.virtual('budgetRange').get(function(){
   return this.budgetMin != null ? `From ${this.budgetMin}` : `Up to ${this.budgetMax}`;
 });
 
+// Export the Tender model
 module.exports = mongoose.model('Tender', tenderSchema);

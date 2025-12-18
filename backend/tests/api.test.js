@@ -1,3 +1,7 @@
+// API Integration Tests
+// Tests the main API endpoints for authentication, tenders, vendors, and applications
+// Uses MongoDB Memory Server for isolated testing environment
+
 const request = require('supertest');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -8,22 +12,26 @@ const User = require('../models/User');
 const Tender = require('../models/Tender');
 const Application = require('../models/Application');
 
+// Helper function to generate JWT tokens for testing authenticated requests
 const signToken = (user) => jwt.sign({ id: user._id.toString(), role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
 let mongoServer;
 
+// Setup: Start in-memory MongoDB server before all tests
 beforeAll(async () => {
   mongoServer = await MongoMemoryServer.create();
   const uri = mongoServer.getUri();
   await mongoose.connect(uri);
 });
 
+// Cleanup: Clear all collections after each test to ensure isolation
 afterEach(async () => {
   const collections = mongoose.connection.collections;
   const tasks = Object.values(collections).map((collection) => collection.deleteMany({}));
   await Promise.all(tasks);
 });
 
+// Teardown: Disconnect and stop the in-memory server after all tests
 afterAll(async () => {
   await mongoose.disconnect();
   if (mongoServer) {
@@ -32,6 +40,7 @@ afterAll(async () => {
 });
 
 describe('Auth API', () => {
+  // Test user registration endpoint
   test('registers a new applicant and issues a token', async () => {
     const payload = { name: 'Acme Builders', email: 'contact@acme.co.za', password: 'SecurePass123!', role: 'publisher' };
     const response = await request(app).post('/api/auth/register').send(payload);
@@ -45,6 +54,7 @@ describe('Auth API', () => {
     expect(user.role).toBe('publisher');
   });
 
+  // Test login with incorrect password
   test('rejects login when password is incorrect', async () => {
     const password = await bcrypt.hash('CorrectHorseBatteryStaple1!', 10);
     await User.create({ name: 'Test Vendor', email: 'vendor@example.com', password, role: 'applicant' });
@@ -57,6 +67,7 @@ describe('Auth API', () => {
 });
 
 describe('Tender API', () => {
+  // Test that only approved tenders are returned in public listing
   test('returns only approved tenders to the public listing', async () => {
     await Tender.create([
       { title: 'Road Resurfacing Phase 1', status: 'approved', category: 'Construction', sector: 'Public' },
@@ -74,6 +85,7 @@ describe('Tender API', () => {
 });
 
 describe('Vendor API', () => {
+  // Test vendor profile creation with complete data and metric calculation
   test('creates or updates the current user profile and calculates metrics', async () => {
     const user = await User.create({
       name: 'Maseko Interactive',
@@ -116,6 +128,7 @@ describe('Vendor API', () => {
 });
 
 describe('Application API', () => {
+  // Test that users can only access their own applications
   test('requires ownership when fetching user applications', async () => {
     const [owner, other] = await Promise.all([
       User.create({ name: 'Owner', email: 'owner@example.com', password: await bcrypt.hash('OwnerPass123!', 10), role: 'applicant' }),
@@ -133,6 +146,7 @@ describe('Application API', () => {
     expect(response.body).toHaveProperty('message');
   });
 
+  // Test application submission with file upload to GridFS
   test('submits a new application with methodology PDF stored in GridFS', async () => {
     const user = await User.create({
       name: 'Zebulon Enterprise',
@@ -149,6 +163,7 @@ describe('Application API', () => {
 
     const token = signToken(user);
 
+    // Submit application with form fields and file attachment
     const response = await request(app)
       .post('/api/applications')
       .set('Authorization', `Bearer ${token}`)
@@ -170,6 +185,7 @@ describe('Application API', () => {
     const stored = await Application.findById(response.body._id);
     expect(stored.methodDocumentId).toBeDefined();
 
+    // Test document download
     const download = await request(app)
       .get(`/api/applications/${stored._id.toString()}/method-document`)
       .set('Authorization', `Bearer ${token}`);

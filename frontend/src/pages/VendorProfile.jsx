@@ -2,6 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api'
 
+// VendorProfile Component
+// Comprehensive vendor profile management system with multi-step wizard.
+// Handles vendor registration, document uploads, compliance verification,
+// and profile status management for the tender platform.
+
 // Global variable to cache the PDF.js instance
 let pdfjsInstance = null
 
@@ -23,8 +28,13 @@ const loadPdfJs = async () => {
   return pdfjsInstance
 }
 
+// Required document types for vendor compliance
 const REQUIRED_DOC_TYPES = ['cipc', 'bbbee', 'csd', 'taxClearance']
+
+// API base URL configuration
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '')
+
+// Professional bodies that vendors can register with
 const PROFESSIONAL_BODIES = [
   'CIDB',
   'ECSA',
@@ -36,6 +46,8 @@ const PROFESSIONAL_BODIES = [
   'SAGC',
   'Other'
 ]
+
+// Empty profile template for initialization
 const EMPTY_PROFILE = {
   companyName: '',
   tradingName: '',
@@ -56,6 +68,7 @@ const EMPTY_PROFILE = {
   autoExtracted: {}
 }
 
+// Multi-step wizard configuration
 const steps = [
   { id: 'basics', label: 'Company Basics', description: 'Identity & Registration' },
   { id: 'contact', label: 'Contact Details', description: 'Location & Communication' },
@@ -65,6 +78,7 @@ const steps = [
   { id: 'review', label: 'Review', description: 'Confirm & Submit' }
 ]
 
+// Utility function to get nested object values by path
 const getValue = (obj, path) => {
   if (!path) return undefined
   const keys = path.split('.')
@@ -76,6 +90,7 @@ const getValue = (obj, path) => {
   return current
 }
 
+// Normalize profile data to ensure consistent structure
 const normaliseProfile = (data) => {
   if (!data) return { ...EMPTY_PROFILE }
   return {
@@ -92,6 +107,7 @@ const normaliseProfile = (data) => {
   }
 }
 
+// Extract metadata from PDF files for auto-filling and validation
 async function extractPdfMetadata(file) {
   try {
     const arrayBuffer = await file.arrayBuffer()
@@ -115,6 +131,7 @@ async function extractPdfMetadata(file) {
   }
 }
 
+// Error boundary component for graceful error handling
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props)
@@ -149,6 +166,7 @@ class ErrorBoundary extends React.Component {
 }
 
 const validators = [
+  // Step 1: Company Basics validation
   (state) => {
     const errs = {}
     if (!state.companyName.trim()) errs.companyName = 'Company name is required'
@@ -158,6 +176,7 @@ const validators = [
     if (!state.csdNumber.trim()) errs.csdNumber = 'CSD number is required'
     return errs
   },
+  // Step 2: Contact Details validation
   (state) => {
     const errs = {}
     if (!state.phone.trim()) errs.phone = 'Phone number is required'
@@ -166,6 +185,7 @@ const validators = [
     if (!state.address.postalCode.trim()) errs['address.postalCode'] = 'Postal code is required'
     return errs
   },
+  // Step 3: Professional Registrations validation (optional but validated if provided)
   (state) => {
     const errs = {}
     if (!state.professionalRegistrations.length) {
@@ -178,6 +198,7 @@ const validators = [
     }
     return errs
   },
+  // Step 4: Governance (Directors) validation
   (state) => {
     const errs = {}
     if (!state.directors.length) {
@@ -191,6 +212,7 @@ const validators = [
     }
     return errs
   },
+  // Step 5: Documents validation
   (state) => {
     const errs = {}
     const docs = (state.documents || []).map(doc => (doc.type || '').toLowerCase())
@@ -202,25 +224,45 @@ const validators = [
     }
     return errs
   },
+  // Step 6: Review step (no validation needed)
   () => ({})
 ]
 
 function VendorProfileContent() {
   const navigate = useNavigate()
+
+  // Profile data state - holds the current draft being edited
   const [draft, setDraft] = useState({ ...EMPTY_PROFILE })
+
+  // Profile ID for API operations
   const [profileId, setProfileId] = useState(null)
+
+  // Loading states
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  // Submission and messaging states
   const [submitted, setSubmitted] = useState(false)
   const [message, setMessage] = useState('')
+
+  // Wizard navigation state
   const [activeStep, setActiveStep] = useState(0)
+
+  // Form validation errors
   const [errors, setErrors] = useState({})
+
+  // Document operation states
   const [docUploading, setDocUploading] = useState({})
   const [docPreviewing, setDocPreviewing] = useState(null)
   const [docDownloading, setDocDownloading] = useState(null)
+
+  // Document expiry tracking
   const [expiryDates, setExpiryDates] = useState({})
+
+  // Edit mode toggle (view vs edit)
   const [isEditing, setIsEditing] = useState(false)
 
+  // Load existing profile data on component mount
   useEffect(() => {
     api.get('/vendors/me')
       .then(res => {
@@ -243,6 +285,7 @@ function VendorProfileContent() {
       })
   }, [])
 
+  // Update nested object properties by path (e.g., 'address.street')
   const updateField = (path, value) => {
     setDraft(prev => {
       const copy = JSON.parse(JSON.stringify(prev))
@@ -258,10 +301,12 @@ function VendorProfileContent() {
     })
   }
 
+  // Add a new director to the directors array
   const addDirector = () => {
     setDraft(prev => ({ ...prev, directors: [...prev.directors, { name: '', idNumber: '', role: '' }] }))
   }
 
+  // Resolve the correct API endpoint for document access
   const resolveDocumentEndpoint = (doc) => {
     if (doc?.url) {
       const raw = doc.url.startsWith('http') ? doc.url.replace(API_BASE, '') : doc.url
@@ -274,6 +319,7 @@ function VendorProfileContent() {
     throw new Error('Document URL unavailable')
   }
 
+  // Infer MIME type from document metadata or filename extension
   const inferMimeType = (doc, fallback) => {
     const declared = doc?.mimeType || doc?.contentType
     if (declared) return declared
@@ -294,6 +340,7 @@ function VendorProfileContent() {
     return map[extension] || 'application/octet-stream'
   }
 
+  // Generate preferred filename for downloads
   const preferredFilename = (doc, mimeType) => {
     if (doc?.filename) return doc.filename
     if (!mimeType) return `${doc?.type || 'document'}`
@@ -310,8 +357,10 @@ function VendorProfileContent() {
     return `${doc?.type || 'document'}.${ext}`
   }
 
+  // Document preview state
   const [previewData, setPreviewData] = useState(null)
 
+  // Cleanup blob URLs when preview data changes
   useEffect(() => {
     if (!previewData?.url || typeof window === 'undefined') return
     return () => {
@@ -319,6 +368,7 @@ function VendorProfileContent() {
     }
   }, [previewData])
 
+  // Handle escape key to close preview
   useEffect(() => {
     if (!previewData || typeof window === 'undefined') return
     const handleKeyDown = (event) => {
@@ -330,15 +380,19 @@ function VendorProfileContent() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [previewData])
 
+  // Close document preview modal
   const closePreview = () => setPreviewData(null)
 
+  // Generate error message for missing documents
   const describeMissingFile = (doc) => {
     const kind = doc?.type ? doc.type.toUpperCase() : 'Document'
     return `${kind} is missing on the server. Please upload a fresh copy using the Update button.`
   }
 
+  // Check if document is a legacy placeholder
   const isLegacyPlaceholder = (doc) => (!doc?.url || doc.url === '#') && !doc?.mimeType
 
+  // Handle document preview functionality
   const handleViewDocument = async (doc) => {
     if (!doc) return
     try {
@@ -553,6 +607,7 @@ function VendorProfileContent() {
     setActiveStep(prev => Math.max(prev - 1, 0))
   }
 
+  // Handle final form submission with validation
   const handleSubmit = async (status) => {
     const { firstInvalidStep, errors: allErrors } = validateAll()
     if (firstInvalidStep !== null) {
@@ -572,6 +627,7 @@ function VendorProfileContent() {
     }
   }
 
+  // Handle document upload with PDF text extraction and auto-filling
   const handleDocumentUpload = async (type, file) => {
     if (!file) return
     try {
@@ -1214,6 +1270,7 @@ function VendorProfileContent() {
   )
 }
 
+// Main VendorProfile component with error boundary wrapper
 export default function VendorProfile() {
   return (
     <ErrorBoundary>

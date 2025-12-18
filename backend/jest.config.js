@@ -1,3 +1,4 @@
+// Jest configuration for backend tests
 module.exports = {
   testEnvironment: 'node',
   testMatch: ['**/tests/**/*.test.js'],

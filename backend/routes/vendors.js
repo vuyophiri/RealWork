@@ -5,15 +5,18 @@ const { auth, adminOnly } = require('../middleware/auth')
 
 const router = express.Router()
 
+// File system and upload dependencies
 const path = require('path')
 const fs = require('fs')
 const multer = require('multer')
 
+// Configure multer for file uploads to vendor directories
 // Multer storage setup: store files under backend/uploads/vendors/<userId>/
 // This ensures files are organized by user ID for easier management.
 const uploadRoot = path.join(__dirname, '..', 'uploads', 'vendors')
 fs.mkdirSync(uploadRoot, { recursive: true })
 
+// Define storage configuration for multer
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const ownerId = req.params.id || req.user.id
@@ -30,6 +33,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }) // 10MB limit
 
+// Required fields for vendor profile completeness
 const REQUIRED_FIELDS = [
   'companyName',
   'registrationNumber',
@@ -45,9 +49,10 @@ const REQUIRED_FIELDS = [
   'completedProjects'
 ]
 
+// Required document types for compliance
 const REQUIRED_DOC_TYPES = ['cipc', 'bbbee', 'csd']
 
-// Helper to safely access nested object properties
+// Helper function to safely access nested object properties
 const getValue = (obj, path) => {
   if (!obj) return undefined
   const parts = path.split('.')
@@ -59,18 +64,22 @@ const getValue = (obj, path) => {
   return cur
 }
 
+// Function to evaluate vendor profile completeness and compliance
 function evaluateProfile(profile) {
   const plain = typeof profile.toObject === 'function' ? profile.toObject() : profile
+  // Check for missing required fields
   const missingFields = REQUIRED_FIELDS.filter(field => {
     const value = getValue(plain, field)
     if (Array.isArray(value)) return value.length === 0
     return value === undefined || value === null || value === ''
   })
 
+  // Check for missing required documents
   const docs = Array.isArray(plain.documents) ? plain.documents : []
   const docTypes = new Set(docs.map(d => (d.type || '').toLowerCase()))
   const missingDocs = REQUIRED_DOC_TYPES.filter(type => !docTypes.has(type))
 
+  // Evaluate professional registrations
   const registrations = Array.isArray(plain.professionalRegistrations) ? plain.professionalRegistrations : []
   const registrationBodies = registrations
     .filter(reg => reg && typeof reg.body === 'string' && reg.body.trim())
@@ -82,9 +91,11 @@ function evaluateProfile(profile) {
   const yearsExperience = Number(plain.yearsExperience || 0)
   const completedProjects = Number(plain.completedProjects || 0)
 
+  // Calculate completeness metrics
   const completeness = REQUIRED_FIELDS.length === 0 ? 1 : Number(((REQUIRED_FIELDS.length - missingFields.length) / REQUIRED_FIELDS.length).toFixed(2))
   const documentCoverage = REQUIRED_DOC_TYPES.length === 0 ? 1 : Number(((REQUIRED_DOC_TYPES.length - missingDocs.length) / REQUIRED_DOC_TYPES.length).toFixed(2))
 
+  // Identify risk flags based on profile data
   const riskFlags = []
   if ((plain.directors || []).length === 0) riskFlags.push('no-directors')
   if (missingDocs.length > 0) riskFlags.push('docs-incomplete')
@@ -93,6 +104,7 @@ function evaluateProfile(profile) {
   if (yearsExperience < 1) riskFlags.push('low-experience')
   if (completedProjects < 1) riskFlags.push('low-project-count')
 
+  // Update profile metrics
   profile.metrics = {
     ...((profile.metrics && typeof profile.metrics.toObject === 'function') ? profile.metrics.toObject() : profile.metrics),
     completeness,
@@ -107,11 +119,13 @@ function evaluateProfile(profile) {
     lastEvaluation: new Date()
   }
 
+  // Automatically promote status from 'incomplete' to 'draft' if all required data is present
   if (missingFields.length === 0 && missingDocs.length === 0 && profile.status === 'incomplete') {
     profile.status = 'draft'
   }
 }
 
+// Route to get the current user's vendor profile
 // GET /api/vendors/me - get profile for current user
 router.get('/me', auth, async (req, res) => {
   try {
@@ -123,6 +137,7 @@ router.get('/me', auth, async (req, res) => {
   }
 })
 
+// Route to create or update the current user's vendor profile
 // POST /api/vendors - create or update profile for current user
 router.post('/', auth, async (req, res) => {
   try {
@@ -144,6 +159,7 @@ router.post('/', auth, async (req, res) => {
   }
 })
 
+// Route to upload a document for a vendor profile
 // POST /api/vendors/:id/documents - upload a document for a vendor profile
 router.post('/:id/documents', auth, upload.single('file'), async (req, res) => {
   try {
@@ -181,6 +197,7 @@ router.post('/:id/documents', auth, upload.single('file'), async (req, res) => {
   }
 })
 
+// Route to download a document from a vendor profile
 // GET /api/vendors/:id/documents/:filename/download - download a document (owner or admin)
 router.get('/:id/documents/:filename/download', auth, async (req, res) => {
   try {
@@ -201,6 +218,7 @@ router.get('/:id/documents/:filename/download', auth, async (req, res) => {
   }
 })
 
+// Admin route to list all vendor profiles
 // GET /api/vendors - admin list all
 router.get('/', auth, adminOnly, async (req, res) => {
   try {
@@ -212,6 +230,7 @@ router.get('/', auth, adminOnly, async (req, res) => {
   }
 })
 
+// Admin route to get a single vendor profile
 // GET /api/vendors/:id - admin get single profile
 router.get('/:id', auth, adminOnly, async (req, res) => {
   try {
@@ -224,6 +243,7 @@ router.get('/:id', auth, adminOnly, async (req, res) => {
   }
 })
 
+// Admin route to update vendor profile verification status
 // PUT /api/vendors/:id/status - admin updates verification status and adds note
 router.put('/:id/status', auth, adminOnly, async (req, res) => {
   try {

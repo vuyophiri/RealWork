@@ -34,4 +34,5 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
+// Export the middleware functions
 module.exports = { auth, adminOnly };

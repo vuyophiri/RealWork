@@ -1,19 +1,22 @@
 /* Basic responsive styles using CSS Grid + Flexbox */
 
+/* CSS Custom Properties (Variables) for consistent theming */
 :root{
-  --bg: #f4f7fb;
-  --card: #ffffff;
-  --muted: #6b7280;
-  --accent: #0b74da;
-  --accent-2: #0666c7;
-  --danger: #d9534f;
-  --success: #16a34a;
-  --glass: rgba(11,116,218,0.08);
+  --bg: #f4f7fb;           /* Main background color */
+  --card: #ffffff;         /* Card background color */
+  --muted: #6b7280;        /* Muted text color */
+  --accent: #0b74da;       /* Primary accent color */
+  --accent-2: #0666c7;     /* Secondary accent color */
+  --danger: #d9534f;       /* Error/danger color */
+  --success: #16a34a;      /* Success color */
+  --glass: rgba(11,116,218,0.08); /* Glass effect color */
 }
 
+/* Global reset and base styles */
 *{box-sizing:border-box}
 body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;margin:0;background:var(--bg);color:#0f172a}
 
+/* Navigation styles */
 .nav{
   background:var(--card);
   border-bottom:1px solid rgba(15,23,42,0.06);
@@ -51,6 +54,7 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",
 .nav-left a, .nav-right a { margin: 0; }
 .brand{font-weight:800;margin-right:12px;color:var(--accent-2); font-size: 1.2rem;white-space: nowrap;}
 
+/* Mobile hamburger menu */
 .hamburger {
   display: none;
   cursor: pointer;
@@ -68,6 +72,7 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",
   background-color: var(--accent);
 }
 
+/* Mobile navigation responsive styles */
 @media (max-width: 800px) {
   .nav {
     padding: 0 20px;
@@ -112,37 +117,43 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",
     display: block;
     width: 100%;
   }
-  
+
   .nav-links .btn {
     margin: 16px auto;
     display: inline-block;
   }
-  
+
   .user-name {
     display: block;
     margin: 16px 0 !important;
     color: var(--muted);
   }
 }
+
+/* Layout and container styles */
 .container{max-width:1100px;margin:24px auto;padding:0 18px}
 
+/* Grid system for responsive layouts */
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
 .card{background:var(--card);padding:18px;border-radius:10px;box-shadow:0 6px 18px rgba(15,23,42,0.03);border:1px solid rgba(15,23,42,0.03)}
 .card.small{padding:12px}
 .list>.card{margin-bottom:10px}
 .muted{color:var(--muted);font-size:0.9rem}
 
+/* Button styles */
 .btn{background:linear-gradient(180deg,var(--accent),var(--accent-2));color:#fff;padding:8px 14px;border:none;border-radius:8px;cursor:pointer;text-decoration:none;display:inline-block}
 .btn.small{padding:6px 8px;font-size:0.9rem}
 .btn.ghost{background:transparent;color:var(--accent);border:1px solid rgba(11,116,218,0.12)}
 .btn.danger, .danger{background:var(--danger)}
 .btn.disabled{opacity:0.6;pointer-events:none}
 
+/* Badge and tag styles */
 .badge{display:inline-block;background:var(--glass);color:var(--accent-2);padding:6px 8px;border-radius:999px;font-size:0.8rem;margin-right:6px}
 .tag{display:inline-block;background:#eef2ff;color:#3730a3;padding:6px 8px;border-radius:6px;font-size:0.8rem;margin-right:6px}
 .tag.accent{background:rgba(11,116,218,0.12);color:var(--accent-2)}
 .tag.warning{background:#fff7ed;color:#c2410c}
 
+/* Form styles */
 .form-card input, .form-card textarea, select{width:100%;padding:10px;margin:8px 0 14px;border:1px solid #e6e9ef;border-radius:8px}
 .form-card textarea{min-height:120px}
 .form-header h2{margin:0}
@@ -164,9 +175,13 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",
 .file-label{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border:1px dashed rgba(37,99,235,0.4);border-radius:10px;background:rgba(37,99,235,0.05);color:var(--accent-2);cursor:pointer;font-size:0.9rem}
 .file-label:hover{background:rgba(37,99,235,0.08)}
 .file-uploader .remove-file{align-self:flex-start;background:none;border:none;color:var(--danger);font-size:0.85rem;cursor:pointer;padding:0}
+
+/* Status indicators */
 .status-pill.status-submitted{background:rgba(59,130,246,0.12);color:#2563eb}
 .status-pill.status-under-review{background:rgba(234,179,8,0.18);color:#b45309}
 .status-pill.status-accepted{background:rgba(16,185,129,0.15);color:#0f766e}
+
+/* Applications table styles */
 .applications-table-wrap{margin-top:18px;overflow-x:auto}
 .applications-table{width:100%;border-collapse:separate;border-spacing:0;min-width:720px}
 .applications-table th{background:#f1f5f9;padding:12px 14px;text-align:left;font-size:0.85rem;color:#475569;border-bottom:1px solid #e2e8f0}
@@ -175,6 +190,8 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",
 .tender-cell{display:flex;flex-direction:column;gap:4px}
 .tender-title{font-weight:600;color:#0f172a}
 .small-text{font-size:0.8rem}
+
+/* Link button styles */
 .link-btn{background:none;border:none;color:var(--accent-2);padding:0;margin-right:12px;cursor:pointer;font-size:0.9rem;text-decoration:underline}
 .link-btn:hover{color:var(--accent)}
 .link-btn.muted-link{color:var(--muted);text-decoration:none}
@@ -183,6 +200,8 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",
 .link-btn.danger-text:hover{color:#b91c1c;text-decoration:underline}
 .link-btn[disabled]{color:var(--muted);cursor:not-allowed;text-decoration:none}
 .link-btn[disabled]:hover{color:var(--muted)}
+
+/* Application details styles */
 .app-details-row td{background:#f8fbff}
 .app-details{display:grid;gap:18px;padding:14px 6px}
 .app-details h4{margin:0 0 6px;font-size:1rem}
@@ -195,8 +214,10 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",
 .warning{color:#d97706}
 .error-text{color:var(--danger);font-size:0.85rem;margin:-6px 0 8px}
 
+/* Layout utilities */
 .top-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 
+/* Multi-step wizard styles */
 .wizard-steps{display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap}
 .wizard-step{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:999px;background:#e7effc;color:var(--muted);font-size:0.9rem}
 .wizard-step.active{background:var(--accent);color:#fff}
@@ -206,6 +227,7 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",
 .wizard-body section{display:flex;flex-direction:column}
 .wizard-footer{display:flex;justify-content:space-between;align-items:center;margin-top:18px;gap:12px;flex-wrap:wrap}
 
+/* Document management styles */
 .document-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
 .document-grid .card{display:flex;flex-direction:column;gap:8px}
 .doc-filename{word-break:break-word}
@@ -219,6 +241,7 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",
 .progress-bar{background:var(--accent-2);height:100%;transition:width 0.3s ease}
 .card.small.warning{background:#fff7ed;border-color:#f97316;color:#9a3412}
 
+/* Filter and toggle styles */
 .badge-group{display:flex;gap:8px}
 .badge-toggle{background:transparent;border:1px solid rgba(11,116,218,0.2);color:var(--accent-2);padding:6px 12px;border-radius:999px;font-size:0.85rem;cursor:pointer}
 .badge-toggle.active{background:var(--accent-2);color:#fff}
@@ -229,8 +252,10 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",
 .bulk-actions{display:flex;flex-direction:column;gap:6px}
 .bulk-buttons{display:flex;gap:8px;flex-wrap:wrap}
 
+/* Grid variations */
 .grid.two-col{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
 
+/* Vendor management styles */
 .vendor-card{position:relative}
 .vendor-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
 .status-pill{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:0.8rem;text-transform:capitalize;background:#e2e8f0;color:#1e3a8a}
@@ -240,6 +265,8 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",
 .risk-flags{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .doc-row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
 .btn.tiny{padding:4px 8px;font-size:0.75rem}
+
+/* Document preview styles */
 .preview-pane{margin-top:12px;border:1px solid rgba(15,23,42,0.1);border-radius:8px;overflow:hidden}
 .preview-pane iframe{width:100%;height:220px;border:0}
 .preview-pane img{max-width:100%;display:block}
@@ -251,11 +278,13 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",
 .preview-body iframe{width:100%;height:70vh;border:0;border-radius:6px}
 .preview-body img{max-width:100%;height:auto;display:block;margin:0 auto;border-radius:6px;box-shadow:0 8px 24px rgba(15,23,42,0.15)}
 
+/* Mobile preview responsive styles */
 @media (max-width:700px){
   .preview-container{max-width:100%;padding:0;max-height:95vh}
   .preview-body iframe{height:60vh}
 }
 
+/* Card and layout utilities */
 .card-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .tag-stack{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:flex-start}
 .chip-row{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 8px}
@@ -265,11 +294,12 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",
 
 .tender-meta-tags { text-align: right; }
 
+/* Mobile responsive adjustments */
 @media (max-width:800px){
   .nav{padding:10px}
   .container{padding:0 12px}
   .top-row{flex-direction:column;align-items:flex-start;gap:8px}
-  
+
   .tender-meta-tags { text-align: left; margin-top: 4px; }
 
   .card-heading {
@@ -285,6 +315,7 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",
   }
 }
 
+/* Requirements table styles */
 .requirements-table {
   width: 100%;
   border-collapse: collapse;

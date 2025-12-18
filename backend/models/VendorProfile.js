@@ -95,4 +95,5 @@ vendorProfileSchema.pre('save', function(next){
   next() 
 })
 
+// Export the VendorProfile model
 module.exports = mongoose.model('VendorProfile', vendorProfileSchema) // Export the VendorProfile model

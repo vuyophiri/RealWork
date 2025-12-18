@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 dotenv.config();
 
+// Function to connect to MongoDB
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGO_URI, {
@@ -16,4 +17,5 @@ const connectDB = async () => {
   }
 };
 
+// Export the connection function
 module.exports = connectDB;

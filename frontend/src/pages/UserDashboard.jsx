@@ -2,23 +2,37 @@ import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../api'
 
-// User dashboard shows user's submitted applications
+// UserDashboard Component
+// Comprehensive dashboard for users to track and manage their tender applications.
+// Displays application status, details, and provides actions like viewing, downloading,
+// and withdrawing applications with methodology document handling.
 export default function UserDashboard(){
+  // State for storing user's applications
   const [apps, setApps] = useState([])
+
+  // Loading and error states
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [expandedId, setExpandedId] = useState(null)
-  const [downloadingId, setDownloadingId] = useState(null)
-  const [previewingId, setPreviewingId] = useState(null)
-  const [previewData, setPreviewData] = useState(null)
-  const [withdrawingId, setWithdrawingId] = useState(null)
+
+  // UI interaction states
+  const [expandedId, setExpandedId] = useState(null) // Which application details are expanded
+  const [downloadingId, setDownloadingId] = useState(null) // Which document is being downloaded
+  const [previewingId, setPreviewingId] = useState(null) // Which document is being previewed
+  const [previewData, setPreviewData] = useState(null) // Preview modal data
+  const [withdrawingId, setWithdrawingId] = useState(null) // Which application is being withdrawn
+
+  // Get current user information
   const user = JSON.parse(localStorage.getItem('user') || 'null')
   const currentUserId = user?._id || user?.id
+
+  // Helper to check if application has methodology document
   const hasMethodDocument = (application) => Boolean(application?.methodDocumentId || application?.methodDocument)
 
+  // Fetch user's applications on component mount and when user changes
   useEffect(() => {
-    let mounted = true
+    let mounted = true // Prevent state updates on unmounted component
     const fetchApps = async () => {
+      // Check if user is authenticated
       if (!currentUserId) {
         if (mounted) {
           setApps([])
@@ -27,11 +41,15 @@ export default function UserDashboard(){
         }
         return
       }
+
+      // Set loading state
       if (mounted) {
         setLoading(true)
         setError('')
       }
+
       try {
+        // Fetch applications from API
         const res = await api.get(`/applications/user/${currentUserId}`)
         if (mounted) {
           setApps(res.data || [])
@@ -48,16 +66,23 @@ export default function UserDashboard(){
       }
     }
     fetchApps()
+
+    // Cleanup function to prevent memory leaks
     return () => { mounted = false }
   }, [currentUserId])
 
+  // Currency formatter for South African Rand
   const formatter = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 2 })
+
+  // Status metadata for consistent display
   const statusMeta = {
     submitted: { label: 'Submitted', tone: 'submitted' },
     'under-review': { label: 'Under Review', tone: 'under-review' },
     accepted: { label: 'Accepted', tone: 'accepted' },
     rejected: { label: 'Rejected', tone: 'rejected' }
   }
+
+  // Utility functions for formatting
   const formatDate = (value) => value ? new Date(value).toLocaleDateString() : '—'
   const formatDuration = (value) => {
     if (!value) return '—'
@@ -65,7 +90,11 @@ export default function UserDashboard(){
     if (!Number.isFinite(rounded)) return '—'
     return `${rounded} wk${rounded === 1 ? '' : 's'}`
   }
+
+  // Toggle expanded details view
   const toggleDetails = (id) => setExpandedId(expandedId === id ? null : id)
+
+  // Cleanup blob URLs when preview data changes
   useEffect(() => {
     return () => {
       if (previewData?.url) {
@@ -74,14 +103,18 @@ export default function UserDashboard(){
     }
   }, [previewData])
 
+  // Download methodology document as PDF
   const downloadMethodology = async (app) => {
-  if (!hasMethodDocument(app)) return
+    if (!hasMethodDocument(app)) return
     setError('')
     setDownloadingId(app._id)
     try {
+      // Fetch document as blob
       const response = await api.get(`/applications/${app._id}/method-document?download=1`, { responseType: 'blob' })
       const blob = new Blob([response.data], { type: 'application/pdf' })
       const url = window.URL.createObjectURL(blob)
+
+      // Create and trigger download link
       const link = document.createElement('a')
       link.href = url
       link.download = app.methodDocumentName || `methodology-${app._id}.pdf`
@@ -98,6 +131,7 @@ export default function UserDashboard(){
     }
   }
 
+  // Close preview modal and cleanup
   const closePreview = () => {
     if (previewData?.url) {
       window.URL.revokeObjectURL(previewData.url)
@@ -105,15 +139,19 @@ export default function UserDashboard(){
     setPreviewData(null)
   }
 
+  // Preview methodology document in modal
   const previewMethodology = async (app) => {
-  if (!hasMethodDocument(app)) return
+    if (!hasMethodDocument(app)) return
     setError('')
     setPreviewingId(app._id)
     try {
+      // Fetch document as blob
       const response = await api.get(`/applications/${app._id}/method-document`, { responseType: 'blob' })
       const blob = new Blob([response.data], { type: 'application/pdf' })
       const url = window.URL.createObjectURL(blob)
-  setPreviewData({ url, name: app.methodDocumentName || `methodology-${app._id}.pdf`, appId: app._id })
+
+      // Set preview data for modal
+      setPreviewData({ url, name: app.methodDocumentName || `methodology-${app._id}.pdf`, appId: app._id })
     } catch (err) {
       console.error(err)
       const message = err.response?.data?.message || 'Unable to open the methodology document.'
@@ -123,13 +161,19 @@ export default function UserDashboard(){
     }
   }
 
+  // Withdraw application with confirmation
   const withdrawApplication = async (app) => {
     if (!window.confirm('Withdraw this application? This action cannot be undone.')) return
     setError('')
     setWithdrawingId(app._id)
     try {
+      // Delete application from API
       await api.delete(`/applications/${app._id}`)
+
+      // Update local state
       setApps(prev => prev.filter(item => item._id !== app._id))
+
+      // Close any open details/previews for this application
       if (expandedId === app._id) setExpandedId(null)
       if (previewData?.appId === app._id) closePreview()
     } catch (err) {
@@ -143,6 +187,7 @@ export default function UserDashboard(){
 
   return (
     <>
+      {/* Main dashboard card */}
       <div className="card">
         <div className="dashboard-header">
           <div>
@@ -151,10 +196,16 @@ export default function UserDashboard(){
           </div>
         </div>
 
+        {/* Loading state */}
         {loading && <p className="muted">Loading your applications…</p>}
+
+        {/* Error state */}
         {!loading && error && <p className="error">{error}</p>}
+
+        {/* Empty state */}
         {!loading && !error && apps.length === 0 && <p>You have not submitted any applications yet.</p>}
 
+        {/* Applications table */}
         {!loading && apps.length > 0 && (
           <div className="applications-table-wrap">
           <table className="applications-table">
@@ -174,8 +225,10 @@ export default function UserDashboard(){
                 const status = statusMeta[app.status] || statusMeta.submitted
                 const hasMethodDoc = hasMethodDocument(app)
                 const isExpanded = expandedId === app._id
+
                 return (
                   <React.Fragment key={app._id}>
+                    {/* Main application row */}
                     <tr>
                       <td>
                         <div className="tender-cell">
@@ -191,12 +244,17 @@ export default function UserDashboard(){
                       <td>{formatDuration(app.durationWeeks)}</td>
                       <td>
                         <div className="inline-actions">
+                          {/* Toggle details visibility */}
                           <button type="button" className="link-btn" onClick={() => toggleDetails(app._id)}>
                             {isExpanded ? 'Hide details' : 'View details'}
                           </button>
+
+                          {/* Link to tender details */}
                           {tender?._id && (
                             <Link to={`/tenders/${tender._id}`} className="link-btn muted-link">View tender</Link>
                           )}
+
+                          {/* Withdraw application */}
                           <button
                             type="button"
                             className="link-btn danger-text"
@@ -208,18 +266,25 @@ export default function UserDashboard(){
                         </div>
                       </td>
                     </tr>
+
+                    {/* Expanded details row */}
                     {isExpanded && (
                       <tr className="app-details-row">
                         <td colSpan={6}>
                           <div className="app-details">
+                            {/* Cover letter section */}
                             <div>
                               <h4>Cover Letter</h4>
                               <p>{app.coverLetter || 'No cover letter provided.'}</p>
                             </div>
+
+                            {/* Method statement section */}
                             <div>
                               <h4>Method Statement / Execution Plan</h4>
                               <p>{app.methodStatement || (hasMethodDoc ? 'See attached methodology document.' : 'No execution plan provided.')}</p>
                             </div>
+
+                            {/* Metadata grid */}
                             <div className="meta-grid">
                               <div>
                                 <span className="muted small-text">Compliance Declaration</span>
@@ -229,12 +294,16 @@ export default function UserDashboard(){
                                 <span className="muted small-text">Last Updated</span>
                                 <div>{formatDate(app.updatedAt)}</div>
                               </div>
+
+                              {/* Tender deadline */}
                               {tender?.deadline && (
                                 <div>
                                   <span className="muted small-text">Tender Deadline</span>
                                   <div>{formatDate(tender.deadline)}</div>
                                 </div>
                               )}
+
+                              {/* Methodology document actions */}
                               {hasMethodDoc && (
                                 <div>
                                   <span className="muted small-text">Methodology Document</span>
@@ -274,6 +343,8 @@ export default function UserDashboard(){
           </div>
         )}
       </div>
+
+      {/* PDF Preview Modal */}
       {previewData && (
         <div className="preview-overlay" role="dialog" aria-modal="true" onClick={closePreview}>
           <div className="preview-container" onClick={event => event.stopPropagation()}>
