@@ -6,10 +6,6 @@ import { useNavigate } from 'react-router-dom'
 // Handles user authentication, token storage, and redirection.
 // Manages login form state, API communication, and error handling.
 
-import React, { useState } from 'react'
-import api from '../api'
-import { useNavigate } from 'react-router-dom'
-
 export default function Login(){
   // Form state for email and password inputs
   const [form, setForm] = useState({ email: '', password: '' })
