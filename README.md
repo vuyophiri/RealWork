@@ -66,9 +66,9 @@ This guide provides step-by-step instructions to set up and run your full-stack 
 # Navigate to your desired directory
 cd Documents/CompSci/Project\ Java\ and\ Web\ Dev/
 
-# Clone the repository (replace with your actual repo URL)
-git clone https://github.com/your-username/02-github.git
-cd 02-github
+# Clone the repository below
+git clone https://github.com/vuyophiri/RealWork
+cd RealWork
 ```
 
 ### 2. Backend Setup
@@ -80,10 +80,10 @@ cd backend
 npm install
 
 # Create environment file
-# Copy .env.example to .env and configure
-# On Windows, you can use copy instead of cp
-cp .env.example .env  # Linux/Mac
-# or on Windows: copy .env.example .env
+# Create a new .env file and add the required variables
+# Use your text editor to create .env
+# On Windows: notepad .env
+# On Linux: nano .env
 
 # Edit .env file with your settings
 # Use notepad .env (Windows) or nano .env (Linux)
@@ -181,5 +181,3 @@ Frontend runs on `http://localhost:5173`
 2. **Frontend Changes**: Hot reload enabled
 3. **Database Changes**: Use Compass or seed scripts
 4. **Testing**: `npm test` in respective directories
-
-This guide should work on both Windows and Linux. If you encounter OS-specific issues, let me know your OS and error details!
