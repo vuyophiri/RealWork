@@ -1,9 +1,12 @@
 // Script to add sample tenders without clearing existing data
 const mongoose = require('mongoose')
 const dotenv = require('dotenv')
+const path = require('path')
 
-dotenv.config()
+// Load backend .env explicitly so running from any cwd works
+dotenv.config({ path: path.resolve(__dirname, '../.env') })
 const Tender = require('../models/Tender')
+const mongoURI = process.env.MONGO_URI;
 
 const tenders = [
   {
@@ -74,14 +77,14 @@ const tenders = [
 ]
 
 async function run(){
-  if (!process.env.MONGO_URI) {
-    console.error('Missing MONGO_URI in environment')
-    process.exit(1)
+  // connect using the unified mongoURI
+  await mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
+  console.log('Connected to MongoDB')
+  if (!process.env.MONGO_URI && !process.env.MONGODB_URI) {
+    console.log('Note: using default local MongoDB URI')
   }
 
-  await mongoose.connect(process.env.MONGO_URI)
-  console.log('Connected to MongoDB')
-
+  let inserted = 0
   for (const tender of tenders) {
     const existing = await Tender.findOne({ title: tender.title })
     if (existing) {
@@ -89,11 +92,16 @@ async function run(){
       continue
     }
     await Tender.create(tender)
+    inserted++
     console.log(`Inserted tender: ${tender.title}`)
   }
 
   await mongoose.disconnect()
   console.log('Done adding tenders')
+  console.log('')
+  console.log('AddTenders summary:')
+  console.log(`- Attempted: ${tenders.length}`)
+  console.log(`- Inserted: ${inserted}`)
 }
 
 run().catch(err => {

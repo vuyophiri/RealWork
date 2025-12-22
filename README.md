@@ -121,18 +121,17 @@ echo "VITE_API_URL=http://localhost:5000" > .env
 2. Connect to: `mongodb://localhost:27017`
 3. Create a database named `tenderdb`
 
-### 3. Seed the Database (Optional but Recommended)
+### 3. Seed the Database
 ```bash
 # From backend directory
 cd backend
 
-# Run seed script
+# Run seed scripts
 node seed.js
-
-# Or other seed scripts
 node seeds/seed.js
 node seeds/addTenders.js
 ```
+After running the seed scripts, you will receive login details to login to the web application
 
 ### 4. Start the Backend Server
 ```bash

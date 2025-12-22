@@ -7,7 +7,7 @@ const VendorProfile = require('./models/VendorProfile');
 
 dotenv.config();
 
-const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/realwork';
+const mongoURI = process.env.MONGO_URI;
 
 const seedData = async () => {
   try {
@@ -188,8 +188,21 @@ const seedData = async () => {
     await VendorProfile.insertMany([vendorProfile1, vendorProfile2]);
     console.log('Vendor Profiles created.');
 
-    console.log('Database seeded successfully.');
-    process.exit(0);
+  console.log('Database seeded successfully.');
+  // Summary and convenient login credentials
+  console.log('');
+  console.log('Seed summary:');
+  console.log(`- Users created: 4`);
+  console.log(`- Tenders created: ${tenders.length}`);
+  console.log(`- Vendor profiles created: 2`);
+  console.log('');
+  console.log('You can login with:');
+  console.log(`Admin       -> ${adminUser.email} / password123`);
+  console.log(`Publisher   -> ${publisherUser.email} / password123`);
+  console.log(`Maseko      -> ${vendor1.email} / password123`);
+  console.log(`BuildRight  -> ${vendor2.email} / password123`);
+  console.log('');
+  process.exit(0);
   } catch (err) {
     console.error(err);
     process.exit(1);

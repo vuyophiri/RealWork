@@ -2,15 +2,18 @@
 // Connects to the DB and creates sample users, tenders and applications
 const mongoose = require('mongoose')
 const dotenv = require('dotenv')
+const path = require('path')
 const bcrypt = require('bcryptjs')
 
-dotenv.config()
+// Load backend .env explicitly so running from any cwd works
+dotenv.config({ path: path.resolve(__dirname, '../.env') })
+const mongoURI = process.env.MONGO_URI;
 const User = require('../models/User')
 const Tender = require('../models/Tender')
 const Application = require('../models/Application')
 
 async function main(){
-  await mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  await mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
   console.log('Connected to MongoDB for seeding')
 
   // Clear existing collections (use carefully)
@@ -81,6 +84,14 @@ async function main(){
   console.log('Admin -> admin@realwork.com / password123')
   console.log('Alice -> alice@example.com / password123')
   console.log('Bob -> bob@example.com / password123')
+
+  // Summary
+  console.log('')
+  console.log('Seed summary:')
+  console.log(`- Users created: 3`) // admin, alice, bob
+  console.log(`- Tenders created: ${tenders.length}`)
+  console.log(`- Applications created: ${apps.length}`)
+  console.log('')
 
   await mongoose.disconnect()
 }
