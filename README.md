@@ -131,7 +131,7 @@ node seed.js
 node seeds/seed.js
 node seeds/addTenders.js
 ```
-After running the seed scripts, you will receive login details to login to the web application
+After running the seed scripts, you will receive login details in the console to login to the web application
 
 ### 4. Start the Backend Server
 ```bash
