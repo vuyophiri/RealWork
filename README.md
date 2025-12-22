@@ -90,6 +90,8 @@ npm install
 ```
 
 **Required Environment Variables** (in .env):
+
+To create the JWT Secret Key you can use the Generator at https://jwtsecrets.com/
 ```
 MONGODB_URI=mongodb://localhost:27017/tenderdb
 JWT_SECRET=your-secret-key-here
