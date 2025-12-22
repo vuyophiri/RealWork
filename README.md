@@ -93,7 +93,7 @@ npm install
 
 To create the JWT Secret Key you can use the Generator at https://jwtsecrets.com/
 ```
-MONGODB_URI=mongodb://localhost:27017/tenderdb
+MONGO_URI=mongodb://localhost:27017/tenderdb
 JWT_SECRET=your-secret-key-here
 PORT=5000
 ```
